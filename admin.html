@@ -531,6 +531,10 @@
         courseStatus = document.getElementById("courseStatusFilter").value;
         courseQuery = document.getElementById("courseSearch").value.trim();
         courseYear = document.getElementById("courseYear").value.trim();
+        if (courseStatus === "已結案" && !courseYear) {
+          courseYear = new Intl.DateTimeFormat("en", { timeZone: "Asia/Taipei", year: "numeric" }).format(new Date());
+          document.getElementById("courseYear").value = courseYear;
+        }
         coursePage = 1; closeCourseDashboard(); loadMyCourses();
       };
       document.getElementById("courseStatusFilter").onchange = search;
@@ -586,6 +590,7 @@
       const cacheKey = params.toString();
       const cached = pageCache.get(cacheKey);
       const apply = data => {
+        if (data.year && courseStatus === "已結案") { courseYear = data.year; document.getElementById("courseYear").value = courseYear; }
         myCourses = data.list; coursePage = data.page; coursePages = data.pages; courseTotal = data.total;
         renderCourseList(myCourses);
       };
