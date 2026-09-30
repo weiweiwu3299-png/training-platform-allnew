@@ -222,6 +222,7 @@
     const STUDENT_SESSION_KEY = "trainingPlatformStudentId";
     const STUDENT_PENDING_CACHE_PREFIX = "trainingPlatformPending:";
     const STUDENT_PENDING_CACHE_TTL = 5 * 60 * 1000;
+    const REQUIRED_API_VERSION = 34;
 
     let currentStudent = null;
     let activeCourseFileId = null;
@@ -229,6 +230,7 @@
     let currentPendingCourses = [];
     let detailRequest = 0, pendingRequest = 0, signing = false, detailReady = false, examSubmitting = false, examPassed = true;
     let activeExam = null;
+    let verifiedApiAt = 0;
     let pendingScroll = 0;
     const courseDetailCache = new Map();
 
@@ -406,6 +408,15 @@
 
     async function openSignCourse(fileId) {
       if (signing || !currentStudent) return;
+      if (Date.now() - verifiedApiAt > 5 * 60 * 1000) {
+        try {
+          const api = await fetchJsonWithRetry(`${GAS_URL}?action=getApiVersion`, {}, 20000, 0);
+          if (api.status !== "success" || Number(api.version) < REQUIRED_API_VERSION) {
+            return alert(`訓練後端仍為 v${api.version || "未知"}，請先部署 v${REQUIRED_API_VERSION}，避免測驗課程被誤判為無須測驗。`);
+          }
+          verifiedApiAt = Date.now();
+        } catch (err) { return alert("暫時無法確認訓練後端版本，請稍後重試：" + err.message); }
+      }
       const request = ++detailRequest;
       detailReady = false;
       pendingScroll = window.scrollY;
