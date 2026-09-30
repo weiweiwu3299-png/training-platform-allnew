@@ -170,6 +170,18 @@
     <img id="lightboxImg" class="max-w-full max-h-[78vh] object-contain rounded-lg" onclick="event.stopPropagation()" />
   </div>
 
+  <!-- 錯題說明：與成績摘要分開，手機返回鍵先關閉此視窗 -->
+  <div id="examAnalysisModal" class="fixed inset-0 z-50 hidden bg-black/70 p-3 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="examAnalysisTitle" onclick="if(event.target===this)closeExamAnalysis()">
+    <div class="w-full max-w-2xl max-h-[88vh] overflow-y-auto rounded-2xl bg-white p-4 shadow-xl space-y-3">
+      <div class="flex items-center justify-between gap-3 border-b pb-2">
+        <h2 id="examAnalysisTitle" class="text-base font-bold text-slate-800">錯題說明</h2>
+        <button type="button" id="closeExamAnalysisBtn" onclick="closeExamAnalysis()" class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700">← 返回訓練</button>
+      </div>
+      <div id="examAnalysisList" class="space-y-3"></div>
+      <button type="button" onclick="closeExamAnalysis()" class="w-full rounded-xl bg-indigo-600 py-3 text-sm font-bold text-white">返回訓練</button>
+    </div>
+  </div>
+
   <script>
 
     // 寫入請求只送一次；網路中斷時查詢同一操作回執，不盲目重新建立。
@@ -501,9 +513,15 @@
       document.getElementById("examIntro").textContent = `共 ${activeExam.questionCount} 題，及格分數 ${activeExam.passingScore} 分。${examPassed ? "您已通過本課程測驗，可直接完成簽認。" : "通過測驗後，才可進行親筆簽認。"}`;
       if (examPassed) {
         form.classList.add("hidden");
-        result.className = "rounded-lg bg-emerald-100 border border-emerald-300 p-3 text-sm text-emerald-800 font-bold";
-        result.textContent = "✓ 您已通過本課程測驗，請完成下方簽名與承諾。";
-        result.classList.remove("hidden");
+        let previousResult = null;
+        try { previousResult = JSON.parse(sessionStorage.getItem(`trainingExamFeedback:${currentStudent.empId}:${activeCourseFileId}`) || "null"); } catch (ignoreFeedback) {}
+        if (previousResult?.passed) {
+          showExamResult(previousResult);
+        } else {
+          result.className = "rounded-lg bg-emerald-100 border border-emerald-300 p-3 text-sm text-emerald-800 font-bold";
+          result.textContent = "✓ 您已通過本課程測驗，請完成下方簽名與承諾。";
+          result.classList.remove("hidden");
+        }
         return;
       }
       form.classList.remove("hidden");
@@ -524,28 +542,58 @@
     function showExamResult(result) {
       const box = document.getElementById("examResult");
       box.innerHTML = ""; box.classList.remove("hidden");
+      document.getElementById("examAnalysisModal").classList.add("hidden");
+      const analysisList = document.getElementById("examAnalysisList");
+      analysisList.innerHTML = "";
       const title = document.createElement("p"); title.className = result.passed ? "font-bold text-emerald-800" : "font-bold text-red-800";
       title.textContent = result.passed ? `✓ 通過測驗：${result.score} 分（${result.correctCount}/${result.total} 題正確）` : `尚未通過：${result.score} 分（${result.correctCount}/${result.total} 題正確），及格 ${result.passingScore} 分。`;
       box.appendChild(title);
-      if (!result.passed) {
-        const intro = document.createElement("p"); intro.className = "mt-2 text-xs text-slate-600"; intro.textContent = "以下為本次答錯題目的正確答案與說明："; box.appendChild(intro);
-        (result.incorrect || []).forEach(item => {
-          const row = document.createElement("div"); row.className = "mt-2 bg-white border border-red-200 rounded-lg p-2 text-xs text-slate-700 space-y-1";
+      // v36：及格與未及格都可透過按鈕查看錯題，分數畫面保持簡潔。
+      const incorrect = Array.isArray(result.incorrect) ? result.incorrect : [];
+      if (incorrect.length > 0) {
+        incorrect.forEach(item => {
+          const row = document.createElement("section"); row.className = "bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-slate-700 space-y-2";
           const q = document.createElement("p"); q.className = "font-bold"; q.textContent = `${item.number}. ${item.prompt}`;
           const selected = document.createElement("p"); selected.textContent = `您的答案：${item.selectedText || "未作答"}`;
           const correct = document.createElement("p"); correct.className = "text-emerald-700 font-semibold"; correct.textContent = `正確答案：${item.correctText}`;
           const reason = document.createElement("p"); reason.textContent = `說明：${item.explanation}`;
-          row.append(q, selected, correct, reason); box.appendChild(row);
+          row.append(q, selected, correct, reason); analysisList.appendChild(row);
         });
+        const analysisBtn = document.createElement("button");
+        analysisBtn.type = "button";
+        analysisBtn.className = "mt-3 w-full rounded-xl border border-indigo-300 bg-white py-2.5 text-sm font-bold text-indigo-800";
+        analysisBtn.textContent = `查看錯題（${incorrect.length} 題）`;
+        analysisBtn.onclick = openExamAnalysis;
+        box.appendChild(analysisBtn);
+      } else if (result.passed) {
+        const perfect = document.createElement("p"); perfect.className = "mt-2 text-xs text-emerald-700"; perfect.textContent = "本次全部答對，沒有錯題。"; box.appendChild(perfect);
+      }
+      if (!result.passed) {
         const retry = document.createElement("button"); retry.type = "button"; retry.className = "mt-3 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg text-sm"; retry.textContent = "重新測驗";
         retry.onclick = () => renderExamForCourse(activeExam); box.appendChild(retry);
       }
       box.className = result.passed ? "rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm" : "rounded-xl border border-red-300 bg-red-50 p-3 text-sm";
     }
 
+    function openExamAnalysis() {
+      const modal = document.getElementById("examAnalysisModal");
+      if (!activeCourseFileId || !modal.classList.contains("hidden")) return;
+      history.pushState({ trainingCourse: activeCourseFileId, trainingExamAnalysis: true }, "", window.location.href);
+      modal.classList.remove("hidden");
+      document.getElementById("closeExamAnalysisBtn").focus();
+    }
+
+    function closeExamAnalysis() {
+      const modal = document.getElementById("examAnalysisModal");
+      if (modal.classList.contains("hidden")) return;
+      modal.classList.add("hidden");
+      if (history.state?.trainingExamAnalysis) history.back();
+    }
+
     function closeSignModalView(skipImmediateRefresh = false, fromHistory = false) {
       if (signing) return;
       detailRequest++; detailReady = false;
+      document.getElementById("examAnalysisModal").classList.add("hidden");
       activeCourseFileId = null;
       document.getElementById("signModalView").classList.add("hidden");
       document.getElementById("studentPortal").classList.remove("hidden");
@@ -604,6 +652,7 @@
 
     window.addEventListener("popstate", () => {
       document.getElementById("imageLightbox").classList.add("hidden");
+      document.getElementById("examAnalysisModal").classList.add("hidden");
       if (!history.state?.trainingCourse && activeCourseFileId) {
         if (signing) history.pushState({ trainingCourse: activeCourseFileId }, "", window.location.href);
         else closeSignModalView(true, true);
@@ -686,6 +735,9 @@
         const result = await postConfirmed({ action: "submitExam", fileId: activeCourseFileId, empId: currentStudent.empId, name: currentStudent.name, answers: answers }, 90000, text => btn.textContent = text);
         if (result.status !== "success") throw new Error(result.message || "測驗評分未完成");
         examPassed = !!result.passed;
+        if (examPassed) {
+          try { sessionStorage.setItem(`trainingExamFeedback:${currentStudent.empId}:${activeCourseFileId}`, JSON.stringify(result)); } catch (ignoreFeedback) {}
+        }
         showExamResult(result);
         if (examPassed) {
           activeExam.passed = true;
