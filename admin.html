@@ -189,6 +189,7 @@
           <a id="activeSheetLink" target="_blank" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold">打開試算表</a>
           <button onclick="exportCurrentPdf()" id="activePdfBtn" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold">匯出結案簽名表 PDF</button>
           <button onclick="checkActiveUnsigned()" class="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold">查看未簽到人員</button>
+          <button onclick="loadActiveExamScores()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold">查看測驗成績</button>
           <button onclick="deleteCurrentCourse()" class="px-3 py-2 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-xs font-bold">永久移除本次課程</button>
         </div>
 
@@ -196,6 +197,11 @@
         <div id="activeUnsignedBox" class="hidden p-4 bg-amber-50 rounded-xl border border-amber-200 space-y-2">
           <h4 class="text-xs font-bold text-amber-900" id="activeUnsignedText">尚未簽認名單</h4>
           <div id="activeUnsignedList" class="flex flex-wrap gap-2 text-xs"></div>
+        </div>
+
+        <div id="activeExamScoresBox" class="hidden p-4 bg-indigo-50 rounded-xl border border-indigo-200 space-y-3">
+          <div class="flex items-center justify-between gap-2"><h4 class="text-sm font-bold text-indigo-900">課後測驗成績</h4><span id="activeExamScoreSummary" class="text-xs text-indigo-700"></span></div>
+          <div id="activeExamScoresList" class="overflow-x-auto text-xs text-slate-700"></div>
         </div>
 
         <!-- 動態修訂名冊 -->
@@ -296,6 +302,7 @@
     const ADMIN_CACHE_PREFIX = "trainingPlatformAdminCache:";
     const ADMIN_CACHE_TTL = 5 * 60 * 1000;
     const MAX_COURSE_IMAGES = 20;
+    const REQUIRED_API_VERSION = 34;
     let processingImages = false;
     let publishingCourse = false;
     let currentAdmin = null;
@@ -367,6 +374,13 @@
         }
       }
       throw lastError;
+    }
+
+    async function requireCurrentApi() {
+      const data = await fetchJsonWithRetry(`${GAS_URL}?action=getApiVersion`, {}, 20000, 0);
+      if (data.status !== "success" || Number(data.version) < REQUIRED_API_VERSION) {
+        throw new Error(`目前 Apps Script 仍為 v${data.version || "未知"}；請先部署 v${REQUIRED_API_VERSION}，再開立測驗課程。`);
+      }
     }
 
     function openAdminDashboard(admin) {
@@ -605,6 +619,7 @@
       courseListScroll = window.scrollY;
       liveRosterData = [];
       document.getElementById("activeUnsignedBox").classList.add("hidden");
+      document.getElementById("activeExamScoresBox").classList.add("hidden");
       currentCourse = course;
       document.getElementById("activeCourseTitle").innerText = course.title;
       document.getElementById("activeCourseId").innerText = course.courseId;
@@ -641,6 +656,36 @@
       document.getElementById("singleCourseDashboard").classList.add("hidden");
       currentCourse = null;
       window.scrollTo({ top: courseListScroll, behavior: "instant" });
+    }
+
+    async function loadActiveExamScores() {
+      if (!currentCourse || !currentAdmin) return;
+      const fileId = currentCourse.fileId;
+      const box = document.getElementById("activeExamScoresBox");
+      const list = document.getElementById("activeExamScoresList");
+      const summary = document.getElementById("activeExamScoreSummary");
+      box.classList.remove("hidden"); list.textContent = "正在讀取測驗紀錄..."; summary.textContent = "";
+      try {
+        const data = await fetchJsonWithRetry(`${GAS_URL}?action=getExamScores&fileId=${encodeURIComponent(fileId)}&adminId=${encodeURIComponent(currentAdmin.id)}`, {}, 45000, 1);
+        if (!currentCourse || currentCourse.fileId !== fileId) return;
+        if (data.status !== "success") throw new Error(data.message || "無法讀取成績");
+        if (!data.enabled) { list.textContent = "此課程未啟用測驗。"; return; }
+        const students = data.students || [];
+        summary.textContent = `及格 ${data.passingScore} 分｜已通過 ${students.filter(s => s.passed).length} / ${students.length} 人`;
+        list.innerHTML = "";
+        const table = document.createElement("table"); table.className = "w-full min-w-[550px] text-left border-collapse bg-white rounded-lg";
+        const thead = document.createElement("thead");
+        const headRow = document.createElement("tr");
+        ["工號", "姓名", "作答次數", "最近分數", "最佳分數", "結果"].forEach(label => { const th = document.createElement("th"); th.className = "border-b p-2"; th.textContent = label; headRow.appendChild(th); });
+        thead.appendChild(headRow); table.appendChild(thead);
+        const tbody = document.createElement("tbody");
+        students.forEach(s => {
+          const row = document.createElement("tr");
+          [s.empId, s.name, String(s.attempts), s.latestScore === null ? "—" : `${s.latestScore} 分`, s.bestScore === null ? "—" : `${s.bestScore} 分`, s.passed ? "已通過" : s.attempts ? "未通過" : "尚未作答"].forEach(value => { const td = document.createElement("td"); td.className = "border-b p-2"; td.textContent = value; row.appendChild(td); });
+          tbody.appendChild(row);
+        });
+        table.appendChild(tbody); list.appendChild(table);
+      } catch (err) { list.textContent = "讀取失敗：" + err.message; }
     }
 
     async function toggleCurrentCourseStatus() {
@@ -1159,6 +1204,7 @@
       if (!courseId || !title || !content) return alert("請將課程編號、主題名稱與詳細條目填寫完整！");
       let exam;
       try { exam = buildExamPayload(); } catch (err) { return alert(err.message); }
+      try { await requireCurrentApi(); } catch (err) { return alert(err.message); }
       if (!confirm("確定正式開課？發布後學員即可看到此課程並簽認。")) return;
       publishingCourse = true;
 
