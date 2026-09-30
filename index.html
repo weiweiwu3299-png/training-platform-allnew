@@ -96,6 +96,19 @@
         <div id="detailImageList" class="space-y-3"></div>
       </div>
 
+      <!-- 課後測驗：題目只在已啟用的課程顯示，通過前不可簽認 -->
+      <section id="examSection" class="hidden border-2 border-indigo-200 bg-indigo-50/50 rounded-xl p-4 space-y-3">
+        <div>
+          <h3 class="font-bold text-indigo-950 text-base">📝 課後測驗</h3>
+          <p id="examIntro" class="text-xs text-slate-600 mt-1"></p>
+        </div>
+        <form id="examForm" class="space-y-4">
+          <div id="examQuestionList" class="space-y-4"></div>
+          <button type="submit" id="submitExamBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl text-sm transition shadow">送出測驗並評分</button>
+        </form>
+        <div id="examResult" class="hidden"></div>
+      </section>
+
       <!-- 簽名表單 -->
       <form id="signForm" class="space-y-4 pt-2 border-t">
         <div>
@@ -214,7 +227,8 @@
     let activeCourseFileId = null;
     let savedSignatureBase64 = "";
     let currentPendingCourses = [];
-    let detailRequest = 0, pendingRequest = 0, signing = false, detailReady = false;
+    let detailRequest = 0, pendingRequest = 0, signing = false, detailReady = false, examSubmitting = false, examPassed = true;
+    let activeExam = null;
     let pendingScroll = 0;
     const courseDetailCache = new Map();
 
@@ -407,18 +421,19 @@
 
       resetSignatureForCourse();
 
-      const cached = courseDetailCache.get(fileId);
+      const cacheKey = `${fileId}:${currentStudent.empId}`;
+      const cached = courseDetailCache.get(cacheKey);
       if (cached && Date.now() - cached.savedAt < 120000) {
         renderCourseDetail(cached.info);
         return;
       }
 
       try {
-        const data = await fetchJsonWithRetry(`${GAS_URL}?action=getCourseDetail&fileId=${fileId}`, {}, 45000, 1);
+        const data = await fetchJsonWithRetry(`${GAS_URL}?action=getCourseDetail&fileId=${encodeURIComponent(fileId)}&empId=${encodeURIComponent(currentStudent.empId)}`, {}, 45000, 1);
         if (request !== detailRequest || activeCourseFileId !== fileId) return;
         if (data.status !== "success") throw new Error(data.message || "無法載入課程");
         if (data.status === "success") {
-          courseDetailCache.set(fileId, { info: data.info, savedAt: Date.now() });
+          courseDetailCache.set(cacheKey, { info: data.info, savedAt: Date.now() });
           renderCourseDetail(data.info);
         }
       } catch (err) {
@@ -432,7 +447,6 @@
 
     function renderCourseDetail(info) {
       detailReady = true;
-      validateSignForm();
       document.getElementById("detailTitle").innerText = info.title;
       document.getElementById("detailCategory").innerText = info.category;
       document.getElementById("detailContent").innerText = info.content;
@@ -458,6 +472,64 @@
       } else {
         gal.classList.add("hidden");
       }
+      renderExamForCourse(info.exam);
+      validateSignForm();
+    }
+
+    function renderExamForCourse(exam) {
+      activeExam = exam && exam.enabled ? exam : null;
+      examPassed = !activeExam || !!activeExam.passed;
+      examSubmitting = false;
+      const section = document.getElementById("examSection");
+      const form = document.getElementById("examForm");
+      const list = document.getElementById("examQuestionList");
+      const result = document.getElementById("examResult");
+      list.innerHTML = ""; result.innerHTML = ""; result.classList.add("hidden");
+      if (!activeExam) { section.classList.add("hidden"); return; }
+      section.classList.remove("hidden");
+      document.getElementById("examIntro").textContent = `共 ${activeExam.questionCount} 題，及格分數 ${activeExam.passingScore} 分。${examPassed ? "您已通過本課程測驗，可直接完成簽認。" : "通過測驗後，才可進行親筆簽認。"}`;
+      if (examPassed) {
+        form.classList.add("hidden");
+        result.className = "rounded-lg bg-emerald-100 border border-emerald-300 p-3 text-sm text-emerald-800 font-bold";
+        result.textContent = "✓ 您已通過本課程測驗，請完成下方簽名與承諾。";
+        result.classList.remove("hidden");
+        return;
+      }
+      form.classList.remove("hidden");
+      (activeExam.questions || []).forEach((q, qIndex) => {
+        const block = document.createElement("fieldset");
+        block.className = "bg-white border border-indigo-200 rounded-xl p-3 space-y-2";
+        const title = document.createElement("legend"); title.className = "text-sm font-bold text-slate-800 leading-relaxed"; title.textContent = `${q.number}. ${q.prompt}`; block.appendChild(title);
+        q.options.forEach((option, optionIndex) => {
+          const label = document.createElement("label"); label.className = "flex items-start gap-2 p-2 rounded-lg hover:bg-indigo-50 cursor-pointer text-sm text-slate-700";
+          const radio = document.createElement("input"); radio.type = "radio"; radio.name = `examChoice_${qIndex}`; radio.value = String(optionIndex); radio.className = "mt-0.5";
+          const text = document.createElement("span"); text.textContent = `${"ABCD"[optionIndex]}. ${option}`;
+          label.append(radio, text); block.appendChild(label);
+        });
+        list.appendChild(block);
+      });
+    }
+
+    function showExamResult(result) {
+      const box = document.getElementById("examResult");
+      box.innerHTML = ""; box.classList.remove("hidden");
+      const title = document.createElement("p"); title.className = result.passed ? "font-bold text-emerald-800" : "font-bold text-red-800";
+      title.textContent = result.passed ? `✓ 通過測驗：${result.score} 分（${result.correctCount}/${result.total} 題正確）` : `尚未通過：${result.score} 分（${result.correctCount}/${result.total} 題正確），及格 ${result.passingScore} 分。`;
+      box.appendChild(title);
+      if (!result.passed) {
+        const intro = document.createElement("p"); intro.className = "mt-2 text-xs text-slate-600"; intro.textContent = "以下為本次答錯題目的正確答案與說明："; box.appendChild(intro);
+        (result.incorrect || []).forEach(item => {
+          const row = document.createElement("div"); row.className = "mt-2 bg-white border border-red-200 rounded-lg p-2 text-xs text-slate-700 space-y-1";
+          const q = document.createElement("p"); q.className = "font-bold"; q.textContent = `${item.number}. ${item.prompt}`;
+          const selected = document.createElement("p"); selected.textContent = `您的答案：${item.selectedText || "未作答"}`;
+          const correct = document.createElement("p"); correct.className = "text-emerald-700 font-semibold"; correct.textContent = `正確答案：${item.correctText}`;
+          const reason = document.createElement("p"); reason.textContent = `說明：${item.explanation}`;
+          row.append(q, selected, correct, reason); box.appendChild(row);
+        });
+        const retry = document.createElement("button"); retry.type = "button"; retry.className = "mt-3 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg text-sm"; retry.textContent = "重新測驗";
+        retry.onclick = () => renderExamForCourse(activeExam); box.appendChild(retry);
+      }
+      box.className = result.passed ? "rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm" : "rounded-xl border border-red-300 bg-red-50 p-3 text-sm";
     }
 
     function closeSignModalView(skipImmediateRefresh = false, fromHistory = false) {
@@ -589,26 +661,55 @@
       validateSignForm();
     };
 
+    document.getElementById("examForm").onsubmit = async function(e) {
+      e.preventDefault();
+      if (!activeExam || examPassed || examSubmitting || !activeCourseFileId) return;
+      const answers = (activeExam.questions || []).map((q, index) => {
+        const checked = document.querySelector(`input[name="examChoice_${index}"]:checked`);
+        return checked ? Number(checked.value) : null;
+      });
+      if (answers.some(answer => answer === null)) return alert("請完成每一題後再送出測驗。");
+      const btn = document.getElementById("submitExamBtn");
+      examSubmitting = true; btn.disabled = true; btn.textContent = "評分與儲存紀錄中...";
+      try {
+        const result = await postConfirmed({ action: "submitExam", fileId: activeCourseFileId, empId: currentStudent.empId, name: currentStudent.name, answers: answers }, 90000, text => btn.textContent = text);
+        if (result.status !== "success") throw new Error(result.message || "測驗評分未完成");
+        examPassed = !!result.passed;
+        showExamResult(result);
+        if (examPassed) {
+          activeExam.passed = true;
+          document.getElementById("examForm").classList.add("hidden");
+        }
+        validateSignForm();
+      } catch (err) {
+        alert("測驗尚未完成確認：" + err.message);
+      } finally {
+        examSubmitting = false;
+        if (!examPassed) { btn.disabled = false; btn.textContent = "送出測驗並評分"; }
+      }
+    };
+
     document.getElementById("agreeCheck").onchange = validateSignForm;
 
     function validateSignForm() {
       const agree = document.getElementById("agreeCheck").checked;
       const btn = document.getElementById("submitSignBtn");
       if (signing) { btn.disabled = true; return; }
-      if (agree && savedSignatureBase64 && detailReady) {
+      const testReady = !activeExam || examPassed;
+      if (agree && savedSignatureBase64 && detailReady && testReady) {
         btn.disabled = false;
         btn.className = "w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl text-sm transition shadow cursor-pointer";
         btn.innerText = "確認閱讀完成並送出簽認";
       } else {
         btn.disabled = true;
         btn.className = "w-full bg-slate-300 text-slate-500 font-bold py-3.5 rounded-xl text-sm transition cursor-not-allowed";
-        btn.innerText = "請完成簽名與勾選承諾";
+        btn.innerText = testReady ? "請完成簽名與勾選承諾" : "請先通過課後測驗";
       }
     }
 
     document.getElementById("signForm").onsubmit = async function(e) {
       e.preventDefault();
-      if (signing || !detailReady || !savedSignatureBase64 || !document.getElementById("agreeCheck").checked) return;
+      if (signing || !detailReady || !savedSignatureBase64 || !document.getElementById("agreeCheck").checked || (activeExam && !examPassed)) return;
       signing = true;
       const completedFileId = activeCourseFileId;
       const btn = document.getElementById("submitSignBtn");
