@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="overflow-x-hidden">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>可塑劑廠｜教育訓練簽核平台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html, body {
+      overflow-x: hidden;
+      width: 100%;
+      position: relative;
+    }
+    #modalSigCanvas { touch-action: none; }
+    .sig-guide-line {
+      background-image: linear-gradient(to bottom, transparent 85%, #f1f5f9 85%);
+      background-size: 100% 40px;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen p-3 md:p-6 flex justify-center items-start font-sans">
+
+  <div class="w-full max-w-md my-2 space-y-4">
+
+    <!-- 1. 學員登入視窗 -->
+    <div id="studentLoginBox" class="bg-white rounded-2xl shadow-md p-6 text-center space-y-5">
+      <div class="space-y-1">
+        <span class="text-xs bg-blue-100 text-blue-800 font-bold px-3 py-1 rounded-full">現場無紙化</span>
+        <h1 class="text-2xl font-bold text-slate-800 pt-2">可塑劑廠｜同仁教育訓練簽核平台</h1>
+        <p class="text-xs text-slate-500">輸入工號以查詢您尚未完成的宣導/訓練課程</p>
+      </div>
+
+      <div class="space-y-3">
+        <input type="text" id="loginEmpId" placeholder="請輸入工號 (如 N000143451)" class="w-full border-2 border-slate-300 rounded-xl p-3 text-center text-base font-bold outline-none focus:border-blue-500">
+        <button type="button" onclick="handleStudentLogin()" id="studentLoginBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl text-base shadow transition">
+          查詢我的待完成課程
+        </button>
+      </div>
+    </div>
+
+    <!-- 2. 學員待辦儀表板 -->
+    <div id="studentPortal" class="hidden space-y-4">
+
+      <!-- 個人頂部狀態列 -->
+      <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex justify-between items-center">
+        <div>
+          <h2 class="text-lg font-bold text-slate-800"><span id="welcomeName">同仁</span>，您好</h2>
+          <p class="text-xs text-slate-500">工號：<span id="displayEmpId">--</span> ｜ 訓練待辦中心</p>
+        </div>
+        <button onclick="logoutStudent()" class="text-xs px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-semibold">
+          登出
+        </button>
+      </div>
+
+      <!-- 待辦清單區 -->
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+        <div class="flex justify-between items-center border-b pb-2">
+          <h3 class="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+            <span>📋</span> 待完成簽認課程
+          </h3>
+          <span id="pendingCountBadge" class="text-xs px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800">
+            0 門待簽
+          </span>
+        </div>
+
+        <div id="pendingListContainer" class="space-y-3 pt-1">
+          <div class="text-center py-6 text-slate-400 text-xs">正在載入待簽核清單...</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 3. 單一課程簽核視窗 -->
+    <div id="signModalView" class="hidden bg-white rounded-2xl shadow-xl p-5 space-y-5 border border-slate-200">
+
+      <div class="flex justify-between items-center border-b pb-3">
+        <span class="text-xs bg-blue-100 text-blue-800 font-bold px-2.5 py-1 rounded-full" id="detailCategory">宣導/告知/訓練</span>
+        <button onclick="closeSignModalView()" class="text-xs text-slate-400 hover:text-slate-600 font-bold">✕ 返回清單</button>
+      </div>
+
+      <h2 class="text-xl font-bold text-slate-800 leading-snug" id="detailTitle">--</h2>
+
+      <!-- 宣導重點 -->
+      <div class="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 text-slate-800 space-y-2">
+        <p class="font-bold text-amber-950 text-base flex items-center gap-1.5 border-b border-amber-200 pb-2">
+          <span class="text-xl">⚠️</span> 宣導/告知/訓練 重點項目：
+        </p>
+        <div id="detailContent" class="whitespace-pre-line leading-relaxed text-base font-medium text-slate-900 break-words">
+          載入中...
+        </div>
+      </div>
+
+      <!-- 教材圖片 -->
+      <div id="detailImageGallery" class="hidden space-y-2 pt-1">
+        <p class="text-xs font-bold text-slate-700">🖼️ 說明圖示與規範照片 (點擊看大圖)：</p>
+        <div id="detailImageList" class="space-y-3"></div>
+      </div>
+
+      <!-- 簽名表單 -->
+      <form id="signForm" class="space-y-4 pt-2 border-t">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">簽核人員</label>
+          <div class="p-2.5 bg-slate-50 rounded-xl text-sm font-bold text-slate-700 border" id="signerDisplay">--</div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">本人親筆手寫簽名 <span class="text-red-500">*</span></label>
+          <button type="button" id="openSigCanvasBtn" class="w-full py-3.5 border-2 border-dashed border-blue-500 bg-blue-50 text-blue-700 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-blue-100">
+            <span>✍️</span> 點此開啟【直式手寫簽名板】
+          </button>
+          <div id="signedPreviewBox" class="hidden border-2 border-emerald-300 rounded-xl p-2 bg-emerald-50/50 flex items-center justify-between">
+            <span class="text-emerald-600 font-bold text-xs">✓ 已完成手寫簽名</span>
+            <img id="sigPreviewImg" class="h-10 max-w-[150px] object-contain border bg-white rounded p-0.5" />
+            <button type="button" id="reSignBtn" class="text-xs text-blue-600 underline font-bold">重簽</button>
+          </div>
+        </div>
+
+        <div class="pt-1">
+          <label class="flex items-start gap-2 cursor-pointer">
+            <input id="agreeCheck" type="checkbox" required class="h-4 w-4 mt-0.5 text-blue-600 rounded border-slate-300">
+            <span class="text-xs text-slate-700 font-medium leading-tight">我已確實閱讀並完整理解上述宣導條目，承諾落實執行。</span>
+          </label>
+        </div>
+
+        <button type="submit" id="submitSignBtn" disabled class="w-full bg-slate-300 text-slate-500 font-bold py-3.5 rounded-xl text-sm transition cursor-not-allowed">
+          請完成簽名與勾選承諾
+        </button>
+      </form>
+
+    </div>
+
+  </div>
+
+  <!-- 直式大簽名板 Modal -->
+  <div id="sigCanvasModal" class="fixed inset-0 bg-black/75 z-50 hidden flex flex-col justify-center items-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl p-5 flex flex-col space-y-4 shadow-2xl">
+      <div class="flex justify-between items-center border-b pb-2">
+        <span class="font-bold text-slate-800 text-sm">請以手指書寫您的簽名</span>
+        <button type="button" id="modalClearBtn" class="text-xs bg-red-50 text-red-600 border border-red-200 px-2.5 py-1 rounded font-bold">清除重寫</button>
+      </div>
+
+      <div class="border-2 border-slate-300 rounded-xl bg-white overflow-hidden shadow-inner relative">
+        <canvas id="modalSigCanvas" width="600" height="340" class="w-full h-52 bg-white sig-guide-line"></canvas>
+        <span class="absolute bottom-2 left-3 pointer-events-none text-[11px] text-slate-300">請在此區域內水平書寫</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 pt-1">
+        <button type="button" id="modalCancelBtn" class="py-2.5 bg-slate-200 text-slate-700 rounded-xl text-sm font-bold">取消</button>
+        <button type="button" id="modalSaveBtn" class="py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow">保存簽名</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 照片放大燈箱 -->
+  <div id="imageLightbox" class="fixed inset-0 bg-black/90 z-50 hidden flex flex-col justify-center items-center gap-3 p-2" onclick="closeLightbox()">
+    <button type="button" onclick="event.stopPropagation();closeLightbox()" class="bg-white text-slate-800 rounded-xl px-6 py-3 font-bold">← 返回訓練</button>
+    <img id="lightboxImg" class="max-w-full max-h-[78vh] object-contain rounded-lg" onclick="event.stopPropagation()" />
+  </div>
+
+  <script>
+
+    // 寫入請求只送一次；網路中斷時查詢同一操作回執，不盲目重新建立。
+    async function postConfirmed(payload, timeoutMs = 90000, onStage = () => {}) {
+      payload = JSON.parse(JSON.stringify(payload));
+      const bytes = new TextEncoder().encode(JSON.stringify(payload));
+      const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))).map(b => b.toString(16).padStart(2, "0")).join("");
+      const key = "trainingOperation:" + digest;
+      let operationId = sessionStorage.getItem(key);
+      if (!operationId) {
+        operationId = crypto.randomUUID();
+        sessionStorage.setItem(key, operationId);
+      } else {
+        const prior = await fetchJsonWithRetry(GAS_URL + "?action=getOperationStatus&operationId=" + operationId, {}, 20000, 0);
+        if (prior.status === "success") { sessionStorage.removeItem(key); return prior; }
+        if (prior.status === "error") throw new Error(prior.message || "上次操作未完成，請先核對課程資料。");
+        if (prior.status === "processing") return await waitForReceipt();
+        if (prior.status !== "not_found") throw new Error("無法確認上次操作，請稍後重試");
+      }
+      try {
+        onStage("正在儲存，請稍候…");
+        const response = await fetchWithTimeout(GAS_URL, {
+          method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ ...payload, operationId })
+        }, timeoutMs);
+        const result = await response.json();
+        if (result.status === "success") { sessionStorage.removeItem(key); return result; }
+        if (result.status === "error" && !result.uncertain) return result;
+      } catch (error) { console.info("改以操作回執確認結果", error.name); }
+      return await waitForReceipt();
+
+      async function waitForReceipt() {
+        onStage("正在確認儲存結果，請勿重複送出…");
+        for (let attempt = 0; attempt < 8; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, Math.min(1500 * (attempt + 1), 5000)));
+          let result;
+          try { result = await fetchJsonWithRetry(GAS_URL + "?action=getOperationStatus&operationId=" + operationId, {}, 15000, 0); }
+          catch (error) { continue; }
+          if (result.status === "success") { sessionStorage.removeItem(key); return result; }
+          if (result.status === "error") throw new Error(result.message || "儲存未完成，請核對資料");
+        }
+        throw new Error("尚未確認儲存結果。請稍後再按一次，系統會先查詢同一次操作；請勿重複建立課程。");
+      }
+    }
+    function escapeText(value) {
+      return String(value == null ? "" : value).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxTEymlG-hZluj2ZEcGmNnTEojShVX9P_Nm0B0kvSZ0NMCCucsDbX8ZP_oUeqs56l3pMw/exec";
+    const STUDENT_SESSION_KEY = "trainingPlatformStudentId";
+    const STUDENT_PENDING_CACHE_PREFIX = "trainingPlatformPending:";
+    const STUDENT_PENDING_CACHE_TTL = 5 * 60 * 1000;
+
+    let currentStudent = null;
+    let activeCourseFileId = null;
+    let savedSignatureBase64 = "";
+    let currentPendingCourses = [];
+    let detailRequest = 0, pendingRequest = 0, signing = false, detailReady = false;
+    let pendingScroll = 0;
+    const courseDetailCache = new Map();
+
+    async function fetchWithTimeout(url, options = {}, timeoutMs = 45000) {
+      const started = Date.now();
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        return await fetch(url, { ...options, signal: controller.signal });
+      } finally {
+        window.clearTimeout(timeoutId);
+        console.info("API耗時", options.method || "GET", new URL(url).searchParams.get("action") || "write", Date.now() - started);
+      }
+    }
+
+    async function fetchJsonWithRetry(url, options = {}, timeoutMs = 45000, retries = 1) {
+      let lastError;
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          const response = await fetchWithTimeout(url, options, timeoutMs);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+          if (data && data.temporary && attempt < retries) throw new Error(data.message || "資料暫時同步中");
+          return data;
+        } catch (error) {
+          lastError = error;
+          if (attempt >= retries) break;
+          await new Promise(resolve => window.setTimeout(resolve, 600 * (attempt + 1)));
+        }
+      }
+      throw lastError;
+    }
+
+    function getCachedStudentPending(empId) {
+      try {
+        const cached = JSON.parse(localStorage.getItem(STUDENT_PENDING_CACHE_PREFIX + empId));
+        if (!cached || !cached.savedAt || Date.now() - cached.savedAt > STUDENT_PENDING_CACHE_TTL) return null;
+        return cached.value;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function cacheStudentPending(data) {
+      if (!data || !data.empId) return;
+      try {
+        localStorage.setItem(STUDENT_PENDING_CACHE_PREFIX + data.empId, JSON.stringify({
+          savedAt: Date.now(),
+          value: { pendingCourses: Array.isArray(data.pendingCourses) ? data.pendingCourses : [] }
+        }));
+      } catch (e) {}
+    }
+
+    function openStudentPortal(data) {
+      currentStudent = { empId: data.empId, name: data.name };
+      document.getElementById("welcomeName").innerText = currentStudent.name;
+      document.getElementById("displayEmpId").innerText = currentStudent.empId;
+      document.getElementById("studentLoginBox").classList.add("hidden");
+      document.getElementById("studentPortal").classList.remove("hidden");
+      if (!document.getElementById("pendingUpdateState")) {
+        const state = document.createElement("button");
+        state.id = "pendingUpdateState"; state.type = "button";
+        state.className = "text-xs text-blue-700 my-2";
+        state.innerText = "更新課程清單";
+        state.onclick = () => refreshStudentPending(true);
+        document.getElementById("pendingListContainer").before(state);
+      }
+      if (Array.isArray(data.pendingCourses)) {
+        renderPendingList(data.pendingCourses);
+      } else {
+        document.getElementById("pendingListContainer").innerHTML = '<div class="text-center py-6 text-slate-400 text-xs">正在同步最新待簽課程...</div>';
+      }
+    }
+
+    async function handleStudentLogin() {
+      const empId = document.getElementById("loginEmpId").value.trim();
+      if (!empId) return alert("請輸入工號！");
+
+      const btn = document.getElementById("studentLoginBtn");
+      btn.disabled = true;
+      btn.innerText = "查詢待辦中...";
+
+      try {
+        const data = await fetchJsonWithRetry(`${GAS_URL}?action=getStudentPendingCourses&empId=${encodeURIComponent(empId)}`, {}, 60000, 1);
+        if (data.status === "success") {
+          // 只輸出到瀏覽器主控台，便於確認目前 /exec 是否已部署新版，以及哪一筆課程被略過。
+          console.info("待簽課程診斷", data.debugLogs || []);
+          localStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify({ empId: data.empId, name: data.name }));
+          cacheStudentPending(data);
+          openStudentPortal(data);
+        } else if (data.temporary) {
+          alert(data.message || "課程資料正在同步，請稍後再試一次。");
+        } else {
+          localStorage.removeItem(STUDENT_SESSION_KEY);
+          alert("查無此工號或連線異常！");
+        }
+      } catch (err) {
+        alert("查詢失敗，請檢查手機網路！");
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "查詢我的待完成課程";
+      }
+    }
+
+    function logoutStudent() {
+      if (signing) return;
+      detailRequest++; pendingRequest++;
+      activeCourseFileId = null;
+      if (currentStudent && currentStudent.empId) localStorage.removeItem(STUDENT_PENDING_CACHE_PREFIX + currentStudent.empId);
+      currentStudent = null;
+      courseDetailCache.clear();
+      localStorage.removeItem(STUDENT_SESSION_KEY);
+      document.getElementById("studentPortal").classList.add("hidden");
+      document.getElementById("signModalView").classList.add("hidden");
+      document.getElementById("studentLoginBox").classList.remove("hidden");
+      document.getElementById("loginEmpId").value = "";
+    }
+
+    async function restoreStudentSession() {
+      const savedSession = localStorage.getItem(STUDENT_SESSION_KEY);
+      if (!savedSession) return;
+
+      try {
+        const savedStudent = JSON.parse(savedSession);
+        if (!savedStudent || !savedStudent.empId || !savedStudent.name) throw new Error("舊版登入記憶");
+        document.getElementById("loginEmpId").value = savedStudent.empId;
+        const cachedPending = getCachedStudentPending(savedStudent.empId);
+        openStudentPortal({
+          empId: savedStudent.empId,
+          name: savedStudent.name,
+          pendingCourses: cachedPending ? cachedPending.pendingCourses : undefined
+        });
+        refreshStudentPending();
+      } catch (err) {
+        // 舊版只記錄工號時，保留在輸入框讓使用者登入一次以升級為完整登入狀態。
+        document.getElementById("loginEmpId").value = savedSession;
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", restoreStudentSession);
+
+    function renderPendingList(courses) {
+      currentPendingCourses = Array.isArray(courses) ? courses : [];
+      const container = document.getElementById("pendingListContainer");
+      const badge = document.getElementById("pendingCountBadge");
+      badge.innerText = `${currentPendingCourses.length} 門待簽`;
+
+      if (currentPendingCourses.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-8 space-y-2">
+            <div class="text-emerald-500 text-5xl font-bold">✓</div>
+            <h3 class="text-base font-bold text-slate-800">目前無待簽核課程！</h3>
+            <p class="text-xs text-slate-400">您名下所有的教育訓練皆已完成簽認。</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = "";
+      currentPendingCourses.forEach(c => {
+        const card = document.createElement("div");
+        card.className = "p-4 border border-amber-200 bg-amber-50/60 rounded-xl space-y-2 hover:bg-amber-100/60 transition cursor-pointer";
+        card.onclick = () => openSignCourse(c.fileId);
+        card.innerHTML = `
+          <div class="flex justify-between items-start">
+            <span class="text-xs bg-amber-200 text-amber-900 font-bold px-2 py-0.5 rounded">${escapeText(c.category)}</span>
+            <span class="text-xs font-bold text-blue-600">點此簽署 ➔</span>
+          </div>
+          <h4 class="font-bold text-slate-800 text-base leading-snug">${escapeText(c.title)}</h4>
+          <p class="text-[11px] text-slate-500">經辦：${escapeText(c.creator)} ｜ 建立時間：${escapeText(c.createdAt)}</p>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    async function openSignCourse(fileId) {
+      if (signing || !currentStudent) return;
+      const request = ++detailRequest;
+      detailReady = false;
+      pendingScroll = window.scrollY;
+      if (!history.state?.trainingCourse) history.pushState({ trainingCourse: fileId }, "", window.location.href);
+      activeCourseFileId = fileId;
+      document.getElementById("studentPortal").classList.add("hidden");
+      document.getElementById("signModalView").classList.remove("hidden");
+      document.getElementById("signerDisplay").innerText = `[${currentStudent.empId}] ${currentStudent.name}`;
+      document.getElementById("detailTitle").innerText = "載入訓練內容中...";
+      document.getElementById("detailContent").innerText = "正在從雲端載入重點條目...";
+      document.getElementById("detailImageGallery").classList.add("hidden");
+      document.getElementById("detailImageList").innerHTML = "";
+
+      resetSignatureForCourse();
+
+      const cached = courseDetailCache.get(fileId);
+      if (cached && Date.now() - cached.savedAt < 120000) {
+        renderCourseDetail(cached.info);
+        return;
+      }
+
+      try {
+        const data = await fetchJsonWithRetry(`${GAS_URL}?action=getCourseDetail&fileId=${fileId}`, {}, 45000, 1);
+        if (request !== detailRequest || activeCourseFileId !== fileId) return;
+        if (data.status !== "success") throw new Error(data.message || "無法載入課程");
+        if (data.status === "success") {
+          courseDetailCache.set(fileId, { info: data.info, savedAt: Date.now() });
+          renderCourseDetail(data.info);
+        }
+      } catch (err) {
+        if (request !== detailRequest) return;
+        const box = document.getElementById("detailContent");
+        box.innerText = "無法載入課程資訊。";
+        const retry = document.createElement("button"); retry.innerText = "點此重試";
+        retry.onclick = () => openSignCourse(fileId); box.appendChild(retry);
+      }
+    }
+
+    function renderCourseDetail(info) {
+      detailReady = true;
+      validateSignForm();
+      document.getElementById("detailTitle").innerText = info.title;
+      document.getElementById("detailCategory").innerText = info.category;
+      document.getElementById("detailContent").innerText = info.content;
+
+      const gal = document.getElementById("detailImageGallery");
+      const list = document.getElementById("detailImageList");
+      list.innerHTML = "";
+      if (info.images && info.images.length > 0) {
+        gal.classList.remove("hidden");
+        info.images.forEach(img => {
+          const item = document.createElement("div");
+          item.className = "border rounded-xl overflow-hidden bg-slate-50";
+          const photo = document.createElement("img");
+          photo.loading = "lazy"; photo.decoding = "async"; photo.width = 1000; photo.height = 750;
+          photo.className = "w-full h-auto max-h-96 object-contain bg-white cursor-pointer";
+          photo.src = img.url.replace(/sz=w\d+/, "sz=w480");
+          photo.alt = img.note || "訓練教材照片，點選放大";
+          photo.onclick = () => openLightbox(img.url.replace(/sz=w\d+/, "sz=w1000"));
+          item.appendChild(photo);
+          if (img.note) { const note = document.createElement("p"); note.className = "p-2 text-xs"; note.textContent = img.note; item.appendChild(note); }
+          list.appendChild(item);
+        });
+      } else {
+        gal.classList.add("hidden");
+      }
+    }
+
+    function closeSignModalView(skipImmediateRefresh = false, fromHistory = false) {
+      if (signing) return;
+      detailRequest++; detailReady = false;
+      activeCourseFileId = null;
+      document.getElementById("signModalView").classList.add("hidden");
+      document.getElementById("studentPortal").classList.remove("hidden");
+      window.scrollTo({ top: pendingScroll, behavior: "instant" });
+      if (!fromHistory && history.state?.trainingCourse) history.back();
+      if (!skipImmediateRefresh) refreshStudentPending();
+    }
+
+    async function refreshStudentPending(forceFresh = false) {
+      if (!currentStudent) return;
+      const empId = currentStudent.empId, request = ++pendingRequest;
+      document.getElementById("pendingUpdateState").innerText = "正在更新…";
+      try {
+        const freshParam = forceFresh ? `&fresh=1&t=${Date.now()}` : "";
+        const data = await fetchJsonWithRetry(`${GAS_URL}?action=getStudentPendingCourses&empId=${encodeURIComponent(currentStudent.empId)}${freshParam}`, {
+          cache: forceFresh ? "no-store" : "default"
+        }, 45000, 1);
+        if (request !== pendingRequest || currentStudent?.empId !== empId) return;
+        if (data.status === "success") {
+          cacheStudentPending(data);
+          renderPendingList(data.pendingCourses);
+          document.getElementById("pendingUpdateState").innerText = "已更新 · 點此重新查詢";
+        } else if (data.temporary) {
+          throw new Error(data.message || "同步中");
+        } else {
+          // 若舊瀏覽器記憶的是不在公司名冊的工號，立即清除登入狀態。
+          logoutStudent();
+          alert(data.message || "登入狀態已失效，請重新輸入公司工號。");
+        }
+      } catch (e) {
+        if (request !== pendingRequest) return;
+        document.getElementById("pendingUpdateState").innerText = "更新失敗，保留原清單 · 點此重試";
+      }
+    }
+
+    function removeCompletedCourseFromView(fileId) {
+      renderPendingList(currentPendingCourses.filter(course => course.fileId !== fileId));
+      if (currentStudent) {
+        cacheStudentPending({ empId: currentStudent.empId, pendingCourses: currentPendingCourses });
+      }
+    }
+
+    function openLightbox(url) {
+      document.getElementById("lightboxImg").src = url;
+      if (document.getElementById("imageLightbox").classList.contains("hidden")) {
+        history.pushState({ trainingCourse: activeCourseFileId, trainingPhotoPreview: true }, "", window.location.href);
+      }
+      document.getElementById("imageLightbox").classList.remove("hidden");
+    }
+
+    function closeLightbox() {
+      if (document.getElementById("imageLightbox").classList.contains("hidden")) return;
+      document.getElementById("imageLightbox").classList.add("hidden");
+      if (history.state && history.state.trainingPhotoPreview) history.back();
+    }
+
+    window.addEventListener("popstate", () => {
+      document.getElementById("imageLightbox").classList.add("hidden");
+      if (!history.state?.trainingCourse && activeCourseFileId) {
+        if (signing) history.pushState({ trainingCourse: activeCourseFileId }, "", window.location.href);
+        else closeSignModalView(true, true);
+      }
+    });
+
+    const sigModal = document.getElementById("sigCanvasModal");
+    const canvas = document.getElementById("modalSigCanvas");
+    const ctx = canvas.getContext("2d");
+    let isDrawing = false, hasDrawn = false;
+
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = "round";
+
+    // 每次進入課程都必須重新親筆簽名，不能沿用上一門課的畫布內容或簽名圖檔。
+    function resetSignatureForCourse() {
+      savedSignatureBase64 = "";
+      hasDrawn = false;
+      isDrawing = false;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      document.getElementById("sigPreviewImg").removeAttribute("src");
+      document.getElementById("openSigCanvasBtn").classList.remove("hidden");
+      document.getElementById("signedPreviewBox").classList.add("hidden");
+      document.getElementById("agreeCheck").checked = false;
+      validateSignForm();
+    }
+
+    function getCanvasPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const cx = e.touches ? e.touches[0].clientX : e.clientX;
+      const cy = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: (cx - rect.left) * (canvas.width / rect.width),
+        y: (cy - rect.top) * (canvas.height / rect.height)
+      };
+    }
+
+    function start(e) { isDrawing = true; hasDrawn = true; const p = getCanvasPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }
+    function move(e) { if (!isDrawing) return; const p = getCanvasPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); }
+    function end() { isDrawing = false; }
+
+    canvas.addEventListener("mousedown", start);
+    canvas.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", end);
+    canvas.addEventListener("touchstart", (e) => { e.preventDefault(); start(e); }, { passive: false });
+    canvas.addEventListener("touchmove", (e) => { e.preventDefault(); move(e); }, { passive: false });
+    window.addEventListener("touchend", end);
+
+    document.getElementById("openSigCanvasBtn").onclick = () => sigModal.classList.remove("hidden");
+    document.getElementById("reSignBtn").onclick = () => sigModal.classList.remove("hidden");
+    document.getElementById("modalCancelBtn").onclick = () => sigModal.classList.add("hidden");
+
+    document.getElementById("modalClearBtn").onclick = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      hasDrawn = false;
+    };
+
+    document.getElementById("modalSaveBtn").onclick = () => {
+      if (!hasDrawn) return alert("請書寫您的簽名！");
+      savedSignatureBase64 = canvas.toDataURL("image/png");
+      document.getElementById("sigPreviewImg").src = savedSignatureBase64;
+      document.getElementById("openSigCanvasBtn").classList.add("hidden");
+      document.getElementById("signedPreviewBox").classList.remove("hidden");
+      sigModal.classList.add("hidden");
+      validateSignForm();
+    };
+
+    document.getElementById("agreeCheck").onchange = validateSignForm;
+
+    function validateSignForm() {
+      const agree = document.getElementById("agreeCheck").checked;
+      const btn = document.getElementById("submitSignBtn");
+      if (signing) { btn.disabled = true; return; }
+      if (agree && savedSignatureBase64 && detailReady) {
+        btn.disabled = false;
+        btn.className = "w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl text-sm transition shadow cursor-pointer";
+        btn.innerText = "確認閱讀完成並送出簽認";
+      } else {
+        btn.disabled = true;
+        btn.className = "w-full bg-slate-300 text-slate-500 font-bold py-3.5 rounded-xl text-sm transition cursor-not-allowed";
+        btn.innerText = "請完成簽名與勾選承諾";
+      }
+    }
+
+    document.getElementById("signForm").onsubmit = async function(e) {
+      e.preventDefault();
+      if (signing || !detailReady || !savedSignatureBase64 || !document.getElementById("agreeCheck").checked) return;
+      signing = true;
+      const completedFileId = activeCourseFileId;
+      const btn = document.getElementById("submitSignBtn");
+      btn.disabled = true;
+      btn.innerText = "存檔中...";
+
+      const payload = {
+        action: "submitSign",
+        fileId: activeCourseFileId,
+        empId: currentStudent.empId,
+        name: currentStudent.name,
+        signature: savedSignatureBase64
+      };
+
+      try {
+        const result = await postConfirmed(payload, 90000, text => btn.innerText = text);
+        if (result.status !== "success") throw new Error(result.message || "簽認未完成");
+        pendingRequest++; // 丟棄送出前已在途的舊待辦查詢。
+        signing = false;
+        resetSignatureForCourse();
+        removeCompletedCourseFromView(completedFileId);
+        closeSignModalView(true);
+        document.getElementById("pendingUpdateState").innerText = "簽認已儲存 · 可選擇下一堂課";
+      } catch (err) {
+        alert("簽認尚未完成確認：" + err.message + "（本次簽名已保留）");
+      } finally {
+        signing = false;
+        validateSignForm();
+      }
+    };
+  </script>
+</body>
+</html>

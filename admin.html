@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>可塑劑廠｜經辦管理控制台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body class="bg-slate-100 min-h-screen p-4 md:p-8 font-sans">
+
+  <div class="max-w-4xl mx-auto space-y-6">
+
+    <!-- 1. 經辦登入卡片 -->
+    <div id="loginCard" class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 max-w-md mx-auto text-center space-y-5">
+      <div class="space-y-1">
+        <h1 class="text-2xl font-bold text-slate-800">可塑劑廠｜經辦管理控制中心</h1>
+        <p class="text-xs text-slate-500">請輸入經辦人員工號以進入專屬管理平台</p>
+      </div>
+
+      <div class="space-y-3">
+        <input type="text" id="adminIdInput" placeholder="請輸入經辦工號 (例如 N000163299)" class="w-full border-2 border-slate-300 rounded-xl p-3 text-center text-base font-bold outline-none focus:border-blue-500">
+        <button type="button" onclick="handleAdminLogin()" id="loginBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition shadow">
+          驗證並登入
+        </button>
+      </div>
+      <p class="text-[11px] text-slate-400">僅限【公司人員總名冊 - 經辦名冊】登錄之工號進入</p>
+    </div>
+
+    <!-- 2. 管理主面板 -->
+    <div id="mainDashboard" class="hidden space-y-6">
+      
+      <!-- 頂部經辦資訊列 -->
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-lg">
+            經
+          </div>
+          <div>
+            <h2 class="text-lg font-bold text-slate-800" id="currentAdminName">--</h2>
+            <p class="text-xs text-slate-500">工號：<span id="currentAdminId">--</span> ｜ 經辦專屬工作台</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="toggleCreateForm()" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition">
+            ＋ 建立新課程
+          </button>
+          <button onclick="logoutAdmin()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold rounded-lg transition">
+            登出
+          </button>
+        </div>
+      </div>
+
+      <!-- 學員端 QR Code -->
+      <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center gap-4">
+        <div id="studentPortalQr" class="bg-white p-2 border border-slate-200 rounded-xl shrink-0"></div>
+        <div class="w-full min-w-0 space-y-2 text-center sm:text-left">
+          <div>
+            <h3 class="text-sm font-bold text-slate-800">學員端掃碼入口</h3>
+            <p class="text-xs text-slate-500">同仁掃描後可直接開啟教育訓練簽核平台。</p>
+          </div>
+          <input id="studentPortalUrl" type="text" readonly class="w-full border rounded-lg px-2.5 py-2 text-xs text-slate-600 bg-slate-50" aria-label="學員端網址">
+          <button type="button" onclick="copyStudentPortalUrl()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">複製學員端網址</button>
+          <p id="studentPortalQrHint" class="hidden text-xs text-amber-700"></p>
+        </div>
+      </div>
+
+      <!-- 開課表單 -->
+      <div id="createCourseCard" class="hidden bg-white p-6 rounded-2xl shadow-sm border border-blue-300 space-y-4">
+        <div class="flex justify-between items-center border-b pb-3">
+          <h3 class="font-bold text-slate-800 text-base">建立新訓練課程</h3>
+          <button onclick="toggleCreateForm()" class="text-xs text-slate-400 hover:text-slate-600">✕ 關閉</button>
+        </div>
+
+        <form id="courseForm" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">課程類別 <span class="text-red-500">*</span></label>
+              <select id="category" class="w-full border rounded-lg p-2 text-sm bg-white">
+                <option value="宣導/告知/訓練">宣導/告知/訓練</option>
+                <option value="現場工安宣導">現場工安宣導</option>
+                <option value="標準作業SOP訓練">標準作業SOP訓練</option>
+                <option value="重要政策告知">重要政策告知</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">課程編號 <span class="text-red-500">*</span></label>
+              <input type="text" id="courseId" placeholder="例如: TR-20260908" required class="w-full border rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">主題名稱 <span class="text-red-500">*</span></label>
+            <input type="text" id="title" placeholder="例如: 現場作業安全規範與防護具穿戴規範" required class="w-full border rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">詳細說明內容 <span class="text-red-500">*</span></label>
+            <textarea id="content" rows="4" placeholder="請填寫訓練重點要項..." required class="w-full border rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"></textarea>
+          </div>
+
+          <!-- 應訓人員名冊 -->
+          <div class="border rounded-xl p-4 bg-slate-50 space-y-3">
+            <div class="flex justify-between items-center">
+              <div>
+                <label class="block text-xs font-bold text-slate-700">🏢 選擇應上課部門</label>
+                <span id="rosterCountBadge" class="text-xs text-blue-600 font-semibold">目前名冊共：0 位同仁</span>
+              </div>
+              <button type="button" onclick="openManualAddModal()" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold">
+                ＋ 追加名單
+              </button>
+            </div>
+            <div id="deptCheckboxContainer" class="flex flex-wrap gap-2.5 pt-1">
+              <span class="text-xs text-slate-400">正在讀取部門名冊...</span>
+            </div>
+            <div class="bg-white p-2.5 rounded-lg border">
+              <div id="rosterChipsBox" class="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                <span class="text-xs text-slate-400">尚未加入任何人員</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 最多 20 張教材圖片 -->
+          <div class="border rounded-xl p-4 bg-slate-50 space-y-3">
+            <div class="flex justify-between items-center">
+              <label class="block text-xs font-bold text-slate-700">🖼️ 教材圖片上傳 (最多 20 張)</label>
+              <span id="imgCountBadge" class="text-xs text-blue-600 font-semibold">0 / 20 張</span>
+            </div>
+            <input type="file" id="imageUploader" accept="image/*" multiple class="text-xs text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:bg-blue-50 file:text-blue-700">
+            <div id="imagePreviewGrid" class="grid grid-cols-2 md:grid-cols-4 gap-3 pt-1"></div>
+          </div>
+
+          <button type="button" id="publishBtn" onclick="submitCreateCourse()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition shadow">
+            正式開課並發布至學員待辦
+          </button>
+        </form>
+      </div>
+
+      <!-- 專屬管理課程清單 -->
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+        <div class="flex justify-between items-center border-b pb-3">
+          <h3 class="font-bold text-slate-800 text-base">我管理的教育訓練課程</h3>
+          <span class="text-xs text-slate-500" id="courseTotalCount">共 0 門</span>
+        </div>
+
+        <div id="courseListContainer" class="space-y-3">
+          <div class="text-center py-6 text-slate-400 text-xs">載入課程中...</div>
+        </div>
+      </div>
+
+      <!-- 單一課程詳細控制台 -->
+      <div id="singleCourseDashboard" class="hidden bg-white p-6 rounded-2xl shadow-sm border-2 border-indigo-400 space-y-6">
+        <div class="flex justify-between items-start border-b pb-3">
+          <div>
+            <span id="activeCourseBadge" class="text-xs px-2 py-0.5 rounded font-bold"></span>
+            <h3 class="text-xl font-bold text-slate-800 mt-1" id="activeCourseTitle">--</h3>
+            <p class="text-xs text-slate-500 mt-1">課程編號：<span id="activeCourseId">--</span> ｜ 建立時間：<span id="activeCourseTime">--</span></p>
+          </div>
+          <button onclick="closeCourseDashboard()" class="text-xs text-slate-400 hover:text-slate-600">✕ 關閉控制台</button>
+        </div>
+
+        <!-- 狀態切換與操作列 -->
+        <div class="flex flex-wrap gap-2 items-center bg-slate-50 p-3 rounded-xl border">
+          <button id="toggleStatusBtn" onclick="toggleCurrentCourseStatus()" class="px-3 py-2 rounded-lg text-xs font-bold transition"></button>
+          <a id="activeSheetLink" target="_blank" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold">打開試算表</a>
+          <button onclick="exportCurrentPdf()" id="activePdfBtn" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold">匯出結案簽名表 PDF</button>
+          <button onclick="checkActiveUnsigned()" class="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold">查看未簽到人員</button>
+          <button onclick="deleteCurrentCourse()" class="px-3 py-2 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-xs font-bold">永久移除本次課程</button>
+        </div>
+
+        <!-- 未簽名檢視 -->
+        <div id="activeUnsignedBox" class="hidden p-4 bg-amber-50 rounded-xl border border-amber-200 space-y-2">
+          <h4 class="text-xs font-bold text-amber-900" id="activeUnsignedText">尚未簽認名單</h4>
+          <div id="activeUnsignedList" class="flex flex-wrap gap-2 text-xs"></div>
+        </div>
+
+        <!-- 動態修訂名冊 -->
+        <div class="p-4 bg-purple-50 rounded-xl border border-purple-200 space-y-3">
+          <div class="flex justify-between items-center">
+            <div>
+              <h4 class="text-xs font-bold text-purple-900">📋 即時修訂應訓人員名冊</h4>
+              <p class="text-[11px] text-purple-700">增刪人員後點擊儲存，立即同步至試算表與學員待辦中心。</p>
+            </div>
+            <button onclick="saveActiveRoster()" id="saveRosterBtn" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold">
+              儲存名冊更新
+            </button>
+          </div>
+          <div class="flex gap-2">
+            <input type="text" id="addEmpId" placeholder="工號" class="border rounded p-1 text-xs w-32 bg-white">
+            <input type="text" id="addEmpName" placeholder="姓名" class="border rounded p-1 text-xs w-28 bg-white">
+            <button onclick="addPersonToActiveRoster()" class="px-3 py-1 bg-purple-100 text-purple-800 rounded text-xs font-bold border border-purple-300">＋ 追加</button>
+          </div>
+          <div id="activeRosterChips" class="flex flex-wrap gap-2 bg-white p-2.5 rounded-lg border max-h-36 overflow-y-auto"></div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- 手動新增人員 Modal -->
+  <div id="manualAddModal" class="fixed inset-0 bg-black/60 z-50 hidden flex justify-center items-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-2xl">
+      <h3 class="font-bold text-slate-800 text-sm">手動追加應訓同仁</h3>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">人員 ID (工號)</label>
+          <input type="text" id="modalAddId" placeholder="例如 N000163299" class="w-full border rounded-lg p-2 text-xs outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">同仁姓名</label>
+          <input type="text" id="modalAddName" placeholder="例如 陳大明" class="w-full border rounded-lg p-2 text-xs outline-none">
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeManualAddModal()" class="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">取消</button>
+        <button type="button" onclick="confirmManualAdd()" class="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold">加入名冊</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+
+    // 寫入請求只送一次；網路中斷時查詢同一操作回執，不盲目重新建立。
+    async function postConfirmed(payload, timeoutMs = 90000, onStage = () => {}) {
+      payload = JSON.parse(JSON.stringify(payload));
+      const bytes = new TextEncoder().encode(JSON.stringify(payload));
+      const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))).map(b => b.toString(16).padStart(2, "0")).join("");
+      const key = "trainingOperation:" + digest;
+      let operationId = sessionStorage.getItem(key);
+      if (!operationId) {
+        operationId = crypto.randomUUID();
+        sessionStorage.setItem(key, operationId);
+      } else {
+        const prior = await fetchJsonWithRetry(GAS_URL + "?action=getOperationStatus&operationId=" + operationId, {}, 20000, 0);
+        if (prior.status === "success") { sessionStorage.removeItem(key); return prior; }
+        if (prior.status === "error") throw new Error(prior.message || "上次操作未完成，請先核對課程資料。");
+        if (prior.status === "processing") return await waitForReceipt();
+        if (prior.status !== "not_found") throw new Error("無法確認上次操作，請稍後重試");
+      }
+      try {
+        onStage("正在儲存，請稍候…");
+        const response = await fetchWithTimeout(GAS_URL, {
+          method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ ...payload, operationId })
+        }, timeoutMs);
+        const result = await response.json();
+        if (result.status === "success") { sessionStorage.removeItem(key); return result; }
+        if (result.status === "error" && !result.uncertain) return result;
+      } catch (error) { console.info("改以操作回執確認結果", error.name); }
+      return await waitForReceipt();
+
+      async function waitForReceipt() {
+        onStage("正在確認儲存結果，請勿重複送出…");
+        for (let attempt = 0; attempt < 8; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, Math.min(1500 * (attempt + 1), 5000)));
+          let result;
+          try { result = await fetchJsonWithRetry(GAS_URL + "?action=getOperationStatus&operationId=" + operationId, {}, 15000, 0); }
+          catch (error) { continue; }
+          if (result.status === "success") { sessionStorage.removeItem(key); return result; }
+          if (result.status === "error") throw new Error(result.message || "儲存未完成，請核對資料");
+        }
+        throw new Error("尚未確認儲存結果。請稍後再按一次，系統會先查詢同一次操作；請勿重複建立課程。");
+      }
+    }
+    function escapeText(value) {
+      return String(value == null ? "" : value).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxTEymlG-hZluj2ZEcGmNnTEojShVX9P_Nm0B0kvSZ0NMCCucsDbX8ZP_oUeqs56l3pMw/exec";
+    const ADMIN_SESSION_KEY = "trainingPlatformAdminId";
+    const ADMIN_CACHE_PREFIX = "trainingPlatformAdminCache:";
+    const ADMIN_CACHE_TTL = 5 * 60 * 1000;
+    const MAX_COURSE_IMAGES = 20;
+    let processingImages = false;
+    let publishingCourse = false;
+    let currentAdmin = null;
+    let uploadedImages = [];
+    let activeRoster = [];
+    let currentCourse = null;
+    let liveRosterData = [];
+    let myCourses = [];
+    let coursePage = 1, coursePages = 1, courseTotal = 0, courseListRequest = 0;
+    let courseStatus = "進行中", courseQuery = "", courseYear = "";
+    let rosterRequest = 0, rosterLoading = false, rosterSaving = false;
+    let courseListScroll = 0;
+    const pageCache = new Map();
+    let departmentRosterTimer = null;
+    let departmentRosterRequestVersion = 0;
+    let departmentHasSelection = false;
+    let departmentsLoaded = false, departmentLoading = false;
+    const courseRosterCache = new Map();
+    const departmentRosterCache = new Map();
+
+    function readLocalCache(key, maxAge = ADMIN_CACHE_TTL) {
+      try {
+        const item = JSON.parse(localStorage.getItem(ADMIN_CACHE_PREFIX + key));
+        if (!item || !item.savedAt || Date.now() - item.savedAt > maxAge) return null;
+        return item.value;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function writeLocalCache(key, value) {
+      try {
+        localStorage.setItem(ADMIN_CACHE_PREFIX + key, JSON.stringify({ savedAt: Date.now(), value }));
+      } catch (e) {}
+    }
+
+    function clearLocalCache(key) {
+      localStorage.removeItem(ADMIN_CACHE_PREFIX + key);
+    }
+
+    // Apps Script 新部署、冷啟動或同時執行 PDF 匯出時可能超過 30 秒；
+    // 登入不可過早中止，避免把可正常完成的驗證誤判為失敗。
+    async function fetchWithTimeout(url, options = {}, timeoutMs = 90000) {
+      const started = Date.now();
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        return await fetch(url, { ...options, signal: controller.signal });
+      } finally {
+        window.clearTimeout(timeoutId);
+        console.info("API耗時", options.method || "GET", new URL(url).searchParams.get("action") || "write", Date.now() - started);
+      }
+    }
+
+    async function fetchJsonWithRetry(url, options = {}, timeoutMs = 30000, retries = 1) {
+      let lastError;
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          const response = await fetchWithTimeout(url, options, timeoutMs);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+          if (data && data.temporary && attempt < retries) throw new Error(data.message || "資料暫時同步中");
+          return data;
+        } catch (error) {
+          lastError = error;
+          if (attempt >= retries) break;
+          await new Promise(resolve => window.setTimeout(resolve, 500 * (attempt + 1)));
+        }
+      }
+      throw lastError;
+    }
+
+    function openAdminDashboard(admin) {
+      currentAdmin = admin;
+      myCourses = [];
+      activeRoster = [];
+      liveRosterData = [];
+      currentCourse = null;
+      departmentHasSelection = false;
+      departmentsLoaded = false; departmentLoading = false;
+      departmentRosterRequestVersion++;
+      courseRosterCache.clear();
+      document.getElementById("currentAdminName").innerText = currentAdmin.name;
+      document.getElementById("currentAdminId").innerText = currentAdmin.id;
+      document.getElementById("loginCard").classList.add("hidden");
+      document.getElementById("mainDashboard").classList.remove("hidden");
+      renderStudentPortalQr();
+      setupCourseFilters();
+      loadMyCourses();
+    }
+
+    async function handleAdminLogin() {
+      const id = document.getElementById("adminIdInput").value.trim();
+      if (!id) return alert("請輸入經辦工號！");
+
+      const btn = document.getElementById("loginBtn");
+      btn.disabled = true;
+      btn.innerText = "驗證中...";
+
+      try {
+        const data = await fetchJsonWithRetry(`${GAS_URL}?action=adminLogin&adminId=${encodeURIComponent(id)}`, {}, 90000, 1);
+        if (data.status === "success") {
+          localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(data.admin));
+          openAdminDashboard(data.admin);
+        } else {
+          alert(data.message || "驗證失敗，請確認白名單！");
+        }
+      } catch (err) {
+        if (err.name === "AbortError") {
+          alert("驗證逾時（90 秒）。Apps Script 目前未回應，請稍後再試一次。");
+        } else {
+          alert("連線異常，請確認網路！");
+        }
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "驗證並登入";
+      }
+    }
+
+    function getStudentPortalUrl() {
+      const url = new URL(window.location.href);
+      url.search = "";
+      url.hash = "";
+      if (/\/admin\.html$/i.test(url.pathname)) {
+        url.pathname = url.pathname.replace(/admin\.html$/i, "index.html");
+      } else if (/\/$/.test(url.pathname)) {
+        url.pathname += "index.html";
+      } else {
+        url.pathname = url.pathname.replace(/[^/]*$/, "index.html");
+      }
+      return url.href;
+    }
+
+    function renderStudentPortalQr() {
+      const url = getStudentPortalUrl();
+      const qrBox = document.getElementById("studentPortalQr");
+      const urlInput = document.getElementById("studentPortalUrl");
+      const hint = document.getElementById("studentPortalQrHint");
+      urlInput.value = url;
+      qrBox.innerHTML = "";
+
+      if (window.location.protocol === "file:") {
+        hint.innerText = "目前是本機檔案預覽。部署到可公開存取的網址後，手機掃碼才能開啟平台。";
+        hint.classList.remove("hidden");
+        return;
+      }
+
+      if (typeof QRCode !== "function") {
+        qrBox.innerText = "QR Code 載入失敗";
+        return;
+      }
+
+      new QRCode(qrBox, {
+        text: url,
+        width: 132,
+        height: 132,
+        colorDark: "#0f172a",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }
+
+    async function copyStudentPortalUrl() {
+      const input = document.getElementById("studentPortalUrl");
+      try {
+        await navigator.clipboard.writeText(input.value);
+        alert("學員端網址已複製");
+      } catch (err) {
+        input.select();
+        document.execCommand("copy");
+        alert("學員端網址已複製");
+      }
+    }
+
+    function logoutAdmin() {
+      if (rosterSaving || publishingCourse) return alert("資料正在儲存，請完成後再登出。");
+      courseListRequest++;
+      rosterRequest++;
+      pageCache.clear();
+      currentAdmin = null;
+      localStorage.removeItem(ADMIN_SESSION_KEY);
+      document.getElementById("mainDashboard").classList.add("hidden");
+      document.getElementById("loginCard").classList.remove("hidden");
+      document.getElementById("adminIdInput").value = "";
+    }
+
+    async function restoreAdminSession() {
+      const savedSession = localStorage.getItem(ADMIN_SESSION_KEY);
+      if (!savedSession) return;
+
+      try {
+        const savedAdmin = JSON.parse(savedSession);
+        if (!savedAdmin || !savedAdmin.id || !savedAdmin.name) throw new Error("舊版登入記憶");
+        document.getElementById("adminIdInput").value = savedAdmin.id;
+        openAdminDashboard(savedAdmin);
+      } catch (err) {
+        // 舊版只記錄工號時，保留在輸入框讓使用者登入一次以升級為完整登入狀態。
+        document.getElementById("adminIdInput").value = savedSession;
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", restoreAdminSession);
+
+    function toggleCreateForm() {
+      document.getElementById("createCourseCard").classList.toggle("hidden");
+      if (!document.getElementById("createCourseCard").classList.contains("hidden")) loadDepartmentCheckboxes();
+    }
+
+    function setupCourseFilters() {
+      if (document.getElementById("courseFilters")) return;
+      const controls = document.createElement("div");
+      controls.id = "courseFilters";
+      controls.className = "flex flex-wrap gap-2 items-center text-sm mb-3";
+      controls.innerHTML = '<select id="courseStatusFilter" aria-label="課程狀態" class="border rounded p-2"><option>進行中</option><option>已結案</option></select><input id="courseSearch" placeholder="課程名稱或編號" class="border rounded p-2" aria-label="搜尋課程"><input id="courseYear" placeholder="年份，例如 2026" inputmode="numeric" maxlength="4" class="border rounded p-2 w-36" aria-label="課程年份"><button id="courseSearchBtn" class="border rounded p-2">查詢</button><button id="coursePrev" class="border rounded p-2">上一頁</button><span id="coursePageLabel"></span><button id="courseNext" class="border rounded p-2">下一頁</button><span id="courseLoadState" role="status" class="text-xs text-slate-500"></span>';
+      document.getElementById("courseListContainer").before(controls);
+      const search = () => {
+        courseStatus = document.getElementById("courseStatusFilter").value;
+        courseQuery = document.getElementById("courseSearch").value.trim();
+        courseYear = document.getElementById("courseYear").value.trim();
+        coursePage = 1; closeCourseDashboard(); loadMyCourses();
+      };
+      document.getElementById("courseStatusFilter").onchange = search;
+      document.getElementById("courseSearchBtn").onclick = search;
+      document.getElementById("courseSearch").onkeydown = e => { if (e.key === "Enter") search(); };
+      document.getElementById("coursePrev").onclick = () => { if (coursePage > 1) { coursePage--; loadMyCourses(); } };
+      document.getElementById("courseNext").onclick = () => { if (coursePage < coursePages) { coursePage++; loadMyCourses(); } };
+    }
+
+    function renderCourseList(list) {
+      const container = document.getElementById("courseListContainer");
+      document.getElementById("courseTotalCount").innerText = `共 ${courseTotal} 門`;
+      document.getElementById("coursePageLabel").innerText = `${coursePage} / ${coursePages}`;
+      document.getElementById("coursePrev").disabled = coursePage <= 1;
+      document.getElementById("courseNext").disabled = coursePage >= coursePages;
+      if (list.length === 0) {
+        container.innerHTML = '<div class="text-center py-6 text-slate-400 text-xs">目前沒有符合查詢條件的課程。</div>';
+        return;
+      }
+
+      container.innerHTML = "";
+      list.forEach(c => {
+        const card = document.createElement("div");
+        const isActive = (c.status === "進行中");
+        card.className = "p-4 border rounded-xl bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 hover:bg-slate-100 transition";
+        card.innerHTML = `
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="text-xs px-2 py-0.5 rounded font-bold ${isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}">
+                ${escapeText(c.status)}
+              </span>
+              <span class="text-xs text-slate-400">[${escapeText(c.courseId)}]</span>
+              <h4 class="font-bold text-slate-800 text-sm">${escapeText(c.title)}</h4>
+            </div>
+            <p class="text-[11px] text-slate-500">分類：${escapeText(c.category)} ｜ 建立時間：${escapeText(c.createdAt)}</p>
+            <p class="text-xs text-blue-700">${c.counts ? `最近統計：已簽 ${Number(c.counts.signedCount)}／應簽 ${Number(c.counts.totalCount)} 人` : '點選管理可查看簽認進度'}</p>
+          </div>
+          <button class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold whitespace-nowrap">
+            管理此課程
+          </button>
+        `;
+        card.querySelector("button").onclick = () => openCourseDashboard(c);
+        container.appendChild(card);
+      });
+    }
+
+    async function loadMyCourses() {
+      if (!currentAdmin) return;
+      const request = ++courseListRequest;
+      const adminId = currentAdmin.id;
+      const container = document.getElementById("courseListContainer");
+      const params = new URLSearchParams({ action: "getMyCourses", creatorId: adminId, status: courseStatus, page: coursePage, pageSize: 20, q: courseQuery, year: courseYear });
+      const cacheKey = params.toString();
+      const cached = pageCache.get(cacheKey);
+      const apply = data => {
+        myCourses = data.list; coursePage = data.page; coursePages = data.pages; courseTotal = data.total;
+        renderCourseList(myCourses);
+      };
+      if (cached) apply(cached);
+      else {
+        container.innerHTML = '<div class="text-center py-6 text-slate-400 text-xs">載入課程中...</div>';
+      }
+      document.getElementById("courseLoadState").innerText = cached ? "正在更新…" : "正在載入…";
+      try {
+        const data = await fetchJsonWithRetry(`${GAS_URL}?${params}`, {}, 30000, 1);
+        if (request !== courseListRequest || currentAdmin?.id !== adminId) return;
+        if (data.status !== "success") throw new Error(data.message || "載入失敗");
+        if (!Number.isInteger(data.page)) throw new Error("請先部署新版 Apps Script，再更新管理平台");
+        pageCache.set(cacheKey, data); apply(data);
+        document.getElementById("courseLoadState").innerText = "已更新";
+      } catch (err) {
+        if (request !== courseListRequest) return;
+        document.getElementById("courseLoadState").innerText = "更新失敗，按查詢重試。" + err.message;
+        if (!cached) container.innerHTML = '<div class="text-center py-6 text-red-500 text-xs">無法取得課程清單，請重試。</div>';
+      }
+    }
+
+    function updateCourseInView(courseId, status) {
+      pageCache.clear();
+      myCourses = myCourses.map(course => course.courseId === courseId ? { ...course, status } : course);
+      writeLocalCache(`courses:${currentAdmin.id}`, myCourses);
+      renderCourseList(myCourses);
+    }
+
+    function openCourseDashboard(course) {
+      if (rosterSaving) return alert("名冊正在儲存，請稍候再切換課程。");
+      courseListScroll = window.scrollY;
+      liveRosterData = [];
+      document.getElementById("activeUnsignedBox").classList.add("hidden");
+      currentCourse = course;
+      document.getElementById("activeCourseTitle").innerText = course.title;
+      document.getElementById("activeCourseId").innerText = course.courseId;
+      document.getElementById("activeCourseTime").innerText = course.createdAt;
+      document.getElementById("activeSheetLink").href = course.sheetUrl;
+
+      renderCourseDashboardStatus();
+      loadActiveCourseRoster(course.fileId);
+      document.getElementById("singleCourseDashboard").classList.remove("hidden");
+      document.getElementById("singleCourseDashboard").scrollIntoView({ behavior: "smooth" });
+    }
+
+    function renderCourseDashboardStatus() {
+      if (!currentCourse) return;
+      const badge = document.getElementById("activeCourseBadge");
+      const toggleBtn = document.getElementById("toggleStatusBtn");
+
+      if (currentCourse.status === "進行中") {
+        badge.className = "text-xs px-2 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800";
+        badge.innerText = "進行中 (學員可簽認)";
+        toggleBtn.className = "px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold";
+        toggleBtn.innerText = "切換為【已結案】";
+      } else {
+        badge.className = "text-xs px-2 py-0.5 rounded font-bold bg-slate-200 text-slate-700";
+        badge.innerText = "已結案 (已自學員端移除)";
+        toggleBtn.className = "px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold";
+        toggleBtn.innerText = "重新開啟為【進行中】";
+      }
+    }
+
+    function closeCourseDashboard() {
+      if (rosterSaving) return;
+      rosterRequest++;
+      document.getElementById("singleCourseDashboard").classList.add("hidden");
+      currentCourse = null;
+      window.scrollTo({ top: courseListScroll, behavior: "instant" });
+    }
+
+    async function toggleCurrentCourseStatus() {
+      if (!currentCourse) return;
+      const courseBeingUpdated = currentCourse;
+      const courseId = courseBeingUpdated.courseId;
+      const previousStatus = courseBeingUpdated.status;
+      const targetStatus = (previousStatus === "進行中") ? "已結案" : "進行中";
+      if (!confirm(`確定要將此課程切換為【${targetStatus}】嗎？`)) return;
+
+      const btn = document.getElementById("toggleStatusBtn");
+      btn.disabled = true;
+      courseBeingUpdated.status = targetStatus;
+      updateCourseInView(courseId, targetStatus);
+      renderCourseDashboardStatus();
+
+      try {
+        const data = await postConfirmed({ action: "updateCourseStatus", courseId, fileId: courseBeingUpdated.fileId, newStatus: targetStatus }, 90000);
+        if (data.status === "success") {
+          pageCache.clear(); loadMyCourses();
+        } else {
+          courseBeingUpdated.status = previousStatus;
+          updateCourseInView(courseId, previousStatus);
+          if (currentCourse && currentCourse.courseId === courseId) renderCourseDashboardStatus();
+          alert(data.message || "狀態切換失敗，已還原畫面。");
+        }
+      } catch (err) {
+        courseBeingUpdated.status = previousStatus;
+        updateCourseInView(courseId, previousStatus);
+        if (currentCourse && currentCourse.courseId === courseId) renderCourseDashboardStatus();
+        alert("狀態尚未確認：" + err.message);
+        pageCache.clear(); loadMyCourses();
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function deleteCurrentCourse() {
+      if (!currentCourse) return;
+      const deletingCourse = currentCourse;
+      const warning = `確定要永久從平台移除課程【${currentCourse.courseId}】嗎？\n\n系統只允許已結案且全員已簽核的課程刪除。課程試算表會移至 Google Drive 垃圾桶。`;
+      if (!confirm(warning)) return;
+
+      try {
+        const data = await postConfirmed({ action: "deleteCourse", courseId: deletingCourse.courseId, fileId: deletingCourse.fileId, adminId: currentAdmin.id });
+        if (data.status === "success") {
+          pageCache.clear();
+          alert("課程已自平台移除，課程試算表已移至 Google Drive 垃圾桶。");
+          myCourses = myCourses.filter(course => course.fileId !== deletingCourse.fileId);
+          writeLocalCache(`courses:${currentAdmin.id}`, myCourses);
+          courseRosterCache.delete(deletingCourse.fileId);
+          if (currentCourse?.fileId === deletingCourse.fileId) closeCourseDashboard();
+          renderCourseList(myCourses);
+          loadMyCourses(); // 背景確認總目錄已同步，不阻塞畫面操作。
+        } else {
+          alert("無法刪除：" + (data.message || "請先確認課程已結案且全員完成簽核。"));
+        }
+      } catch (err) {
+        alert("刪除結果尚未確認：" + err.message);
+      }
+    }
+
+    async function exportCurrentPdf() {
+      if (!currentCourse) return;
+      const exportingFileId = currentCourse.fileId;
+      const btn = document.getElementById("activePdfBtn");
+      btn.disabled = true;
+      btn.innerText = "產出 PDF 中...";
+
+      try {
+        const res = await fetchWithTimeout(`${GAS_URL}?action=exportPdf&fileId=${exportingFileId}`, {}, 300000);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const rawText = await res.text();
+        let data;
+        try {
+          data = JSON.parse(rawText);
+        } catch (parseError) {
+          throw new Error(`伺服器回傳格式異常（HTTP ${res.status}）：${rawText.slice(0, 180)}`);
+        }
+        const deadline = Date.now() + 300000;
+        while (data.status === "processing" && Date.now() < deadline) {
+          btn.innerText = "PDF 正在產製，完成後自動下載…";
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          data = await fetchJsonWithRetry(`${GAS_URL}?action=exportPdf&fileId=${exportingFileId}`, {}, 300000, 0);
+        }
+        if (data.status === "success") {
+          if (!data.pdfDataUri || data.pdfDataUri.indexOf(",") === -1) {
+            throw new Error("伺服器未回傳可下載的 PDF 資料");
+          }
+          const base64 = data.pdfDataUri.split(",", 2)[1];
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          const pdfUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+          const dl = document.createElement("a");
+          dl.href = pdfUrl;
+          dl.download = data.fileName || "簽核表.pdf";
+          document.body.appendChild(dl);
+          dl.click();
+          document.body.removeChild(dl);
+          setTimeout(() => URL.revokeObjectURL(pdfUrl), 30000);
+        } else {
+          alert("產出失敗：" + (data.message || "後端未提供原因"));
+        }
+      } catch (e) {
+        alert("匯出 PDF 異常：" + (e && e.message ? e.message : String(e)));
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "匯出結案簽名表 PDF";
+      }
+    }
+
+    async function checkActiveUnsigned() {
+      if (!currentCourse) return;
+      const checkingFileId = currentCourse.fileId;
+      try {
+        const data = await fetchJsonWithRetry(`${GAS_URL}?action=getUnsignedList&fileId=${currentCourse.fileId}`, {}, 30000, 1);
+        if (currentCourse?.fileId !== checkingFileId) return;
+        if (data.status !== "success") throw new Error(data.message || "查詢失敗");
+        if (data.status === "success") {
+          const box = document.getElementById("activeUnsignedBox");
+          const list = document.getElementById("activeUnsignedList");
+          box.classList.remove("hidden");
+          document.getElementById("activeUnsignedText").innerText = `應訓 ${data.totalCount} 人，已簽 ${data.signedCount} 人，未簽認：${data.unsignedCount} 人`;
+          list.innerHTML = "";
+          data.unsignedList.forEach(u => {
+            const item = document.createElement("span");
+            item.className = "bg-white border border-amber-300 text-amber-800 px-2 py-0.5 rounded text-[11px]";
+            item.innerText = `[${u.dept || ''}] ${u.id} ${u.name}`;
+            list.appendChild(item);
+          });
+        }
+      } catch (e) {
+        alert("查詢未簽到異常！");
+      }
+    }
+
+    async function loadActiveCourseRoster(fileId, forceFresh = false) {
+      const request = ++rosterRequest;
+      rosterLoading = true;
+      document.getElementById("saveRosterBtn").disabled = true;
+      const container = document.getElementById("activeRosterChips");
+      const cached = courseRosterCache.get(fileId);
+      if (!forceFresh && cached && Date.now() - cached.savedAt < ADMIN_CACHE_TTL) {
+        liveRosterData = cached.roster.map(person => ({ ...person }));
+        renderActiveRosterChips();
+        rosterLoading = false;
+        document.getElementById("saveRosterBtn").disabled = false;
+        return;
+      }
+
+      container.innerHTML = '<span class="text-xs text-slate-400">載入名冊中...</span>';
+      try {
+        const data = await fetchJsonWithRetry(`${GAS_URL}?action=getCourseRoster&fileId=${fileId}`, {}, 30000, 1);
+        if (request !== rosterRequest || currentCourse?.fileId !== fileId) return;
+        if (data.status !== "success") throw new Error(data.message || "名冊載入失敗");
+        if (data.status === "success") {
+          liveRosterData = Array.isArray(data.roster) ? data.roster : [];
+          courseRosterCache.set(fileId, { savedAt: Date.now(), roster: liveRosterData.map(person => ({ ...person })) });
+          if (Number.isFinite(data.totalCount)) {
+            const item = myCourses.find(c => c.fileId === fileId);
+            if (item) { item.counts = { totalCount: data.totalCount, signedCount: data.signedCount }; renderCourseList(myCourses); }
+          }
+          renderActiveRosterChips();
+          rosterLoading = false;
+          document.getElementById("saveRosterBtn").disabled = false;
+        }
+      } catch (e) {
+        if (request !== rosterRequest) return;
+        container.innerHTML = '<button type="button" class="text-xs text-red-500">名冊載入失敗，點此重試</button>';
+        container.querySelector("button").onclick = () => loadActiveCourseRoster(fileId, true);
+      }
+    }
+
+    function renderActiveRosterChips() {
+      const container = document.getElementById("activeRosterChips");
+      if (liveRosterData.length === 0) {
+        container.innerHTML = '<span class="text-xs text-slate-400">目前無人員名單</span>';
+        return;
+      }
+      container.innerHTML = "";
+      liveRosterData.forEach((u, idx) => {
+        const chip = document.createElement("span");
+        chip.className = "inline-flex items-center gap-1 bg-purple-100 text-purple-900 px-2 py-0.5 rounded text-xs border border-purple-200";
+        chip.innerHTML = `
+          <span>[${u.dept || '自訂'}] ${u.id} ${u.name}</span>
+          <button type="button" onclick="removeLivePerson(${idx})" class="text-red-500 font-bold ml-1">✕</button>
+        `;
+        container.appendChild(chip);
+      });
+    }
+
+    function removeLivePerson(idx) {
+      if (rosterLoading || rosterSaving) return;
+      liveRosterData.splice(idx, 1);
+      renderActiveRosterChips();
+    }
+
+    function addPersonToActiveRoster() {
+      if (rosterLoading || rosterSaving) return;
+      const id = document.getElementById("addEmpId").value.trim();
+      const name = document.getElementById("addEmpName").value.trim();
+      if (!id || !name) return alert("請輸入工號與姓名！");
+      liveRosterData.push({ id: id, name: name, dept: "追加" });
+      renderActiveRosterChips();
+      document.getElementById("addEmpId").value = "";
+      document.getElementById("addEmpName").value = "";
+    }
+
+    async function saveActiveRoster() {
+      if (!currentCourse || rosterLoading || rosterSaving) return;
+      rosterSaving = true;
+      const btn = document.getElementById("saveRosterBtn");
+      btn.disabled = true;
+      btn.innerText = "儲存中...";
+      try {
+        const data = await postConfirmed({ action: "updateCourseRoster", fileId: currentCourse.fileId, roster: liveRosterData }, 90000, text => btn.innerText = text);
+        if (data.status !== "success") throw new Error(data.message || "儲存未完成");
+        if (data.status === "success") {
+          courseRosterCache.set(currentCourse.fileId, { savedAt: Date.now(), roster: liveRosterData.map(person => ({ ...person })) });
+          alert(`名冊更新成功！已同步 ${data.count} 位應上課人員。`);
+        }
+      } catch (e) {
+        alert("名冊儲存未完成：" + e.message);
+      } finally {
+        rosterSaving = false;
+        btn.disabled = false;
+        btn.innerText = "儲存名冊更新";
+      }
+    }
+
+    async function loadDepartmentCheckboxes() {
+      if (departmentsLoaded) return;
+      const container = document.getElementById("deptCheckboxContainer");
+      const cached = readLocalCache("departments", 30 * 60 * 1000);
+      if (Array.isArray(cached) && cached.length > 0) {
+        renderDepartmentCheckboxes(cached);
+      }
+      try {
+        const data = await fetchJsonWithRetry(`${GAS_URL}?action=getDepartmentList`, {}, 30000, 1);
+        if (data.status === "success" && data.departments.length > 0) {
+          writeLocalCache("departments", data.departments);
+          // 使用者已開始勾選時，避免背景更新重置他的選擇。
+          if (!departmentHasSelection || !container.querySelector(".dept-box")) renderDepartmentCheckboxes(data.departments);
+        }
+      } catch (err) {
+        if (!cached) container.innerHTML = '<span class="text-xs text-red-500">讀取部門失敗</span>';
+      }
+    }
+
+    function renderDepartmentCheckboxes(departments) {
+      departmentsLoaded = true;
+      const container = document.getElementById("deptCheckboxContainer");
+      container.innerHTML = `
+        <label class="inline-flex items-center gap-1.5 text-xs font-bold text-blue-800 bg-blue-50 px-2 py-1 rounded border border-blue-200 cursor-pointer">
+          <input type="checkbox" onchange="toggleSelectAllDepts(this)" class="rounded"> 全選所有部門
+        </label>
+      `;
+      departments.forEach(dept => {
+        const label = document.createElement("label");
+        label.className = "inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-white px-2 py-1 rounded border cursor-pointer";
+        label.innerHTML = `<input type="checkbox" name="deptChoice" value="${escapeText(dept)}" onchange="onDeptChanged()" class="dept-box rounded"> ${escapeText(dept)}`;
+        container.appendChild(label);
+      });
+    }
+
+    function toggleSelectAllDepts(allBox) {
+      const boxes = document.querySelectorAll(".dept-box");
+      boxes.forEach(b => b.checked = allBox.checked);
+      onDeptChanged();
+    }
+
+    function onDeptChanged() {
+      departmentLoading = true;
+      document.getElementById("rosterCountBadge").innerText = "正在更新應訓名冊…";
+      departmentHasSelection = true;
+      departmentRosterRequestVersion++;
+      window.clearTimeout(departmentRosterTimer);
+      departmentRosterTimer = window.setTimeout(loadRosterForSelectedDepartments, 350);
+    }
+
+    async function loadRosterForSelectedDepartments() {
+      const requestVersion = departmentRosterRequestVersion;
+      const boxes = Array.from(document.querySelectorAll(".dept-box:checked"));
+      const selectedDepts = boxes.map(b => b.value);
+      if (selectedDepts.length === 0) {
+        departmentLoading = false;
+        activeRoster = activeRoster.filter(r => r.isManual);
+        renderRosterChips();
+        return;
+      }
+      try {
+        const cacheKey = selectedDepts.slice().sort().join("|");
+        const cached = departmentRosterCache.get(cacheKey);
+        let data = null;
+        if (cached && Date.now() - cached.savedAt < ADMIN_CACHE_TTL) {
+          data = { status: "success", roster: cached.roster.map(person => ({ ...person })) };
+        } else {
+          data = await fetchJsonWithRetry(`${GAS_URL}?action=getRosterByDept&depts=${encodeURIComponent(selectedDepts.join(","))}`, {}, 30000, 1);
+          if (data.status === "success") {
+            departmentRosterCache.set(cacheKey, { savedAt: Date.now(), roster: (data.roster || []).map(person => ({ ...person })) });
+          }
+        }
+        if (requestVersion !== departmentRosterRequestVersion) return;
+        if (data.status !== "success") throw new Error(data.message || "名冊載入失敗");
+        if (data.status === "success") {
+          const manualUsers = activeRoster.filter(r => r.isManual);
+          const deptUsers = data.roster;
+          const map = new Map();
+          deptUsers.forEach(u => map.set(u.id, u));
+          manualUsers.forEach(u => map.set(u.id, u));
+          activeRoster = Array.from(map.values());
+          departmentLoading = false;
+          renderRosterChips();
+        }
+      } catch (e) {
+        if (requestVersion === departmentRosterRequestVersion) document.getElementById("rosterCountBadge").innerText = "名冊讀取失敗，請重新勾選部門再開課";
+      }
+    }
+
+    function renderRosterChips() {
+      const box = document.getElementById("rosterChipsBox");
+      document.getElementById("rosterCountBadge").innerText = `目前名冊共：${activeRoster.length} 位同仁`;
+      if (activeRoster.length === 0) {
+        box.innerHTML = '<span class="text-xs text-slate-400">尚未加入任何人員</span>';
+        return;
+      }
+      box.innerHTML = "";
+      activeRoster.forEach((u, idx) => {
+        const chip = document.createElement("span");
+        chip.className = "inline-flex items-center gap-1 bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-xs border";
+        chip.innerHTML = `
+          <span>[${u.dept || '手動'}] ${u.id} ${u.name}</span>
+          <button type="button" onclick="removePersonFromActiveRoster(${idx})" class="text-red-500 font-bold ml-1">✕</button>
+        `;
+        box.appendChild(chip);
+      });
+    }
+
+    function removePersonFromActiveRoster(idx) {
+      activeRoster.splice(idx, 1);
+      renderRosterChips();
+    }
+
+    function openManualAddModal() {
+      document.getElementById("modalAddId").value = "";
+      document.getElementById("modalAddName").value = "";
+      document.getElementById("manualAddModal").classList.remove("hidden");
+    }
+    function closeManualAddModal() {
+      document.getElementById("manualAddModal").classList.add("hidden");
+    }
+    function confirmManualAdd() {
+      const id = document.getElementById("modalAddId").value.trim();
+      const name = document.getElementById("modalAddName").value.trim();
+      if (!id || !name) return alert("請完整填寫工號與姓名！");
+      activeRoster.push({ id: id, name: name, dept: "追加", isManual: true });
+      renderRosterChips();
+      closeManualAddModal();
+    }
+
+    function compressImage(file, maxWidth = 1000, quality = 0.65) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("照片讀取失敗"));
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onerror = () => reject(new Error("不支援的圖片格式"));
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            let w = img.width, h = img.height;
+            if (Math.max(w, h) > maxWidth) {
+              const ratio = maxWidth / Math.max(w, h);
+              w = Math.round(w * ratio); h = Math.round(h * ratio);
+            }
+            canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, w, h);
+            let compressed = canvas.toDataURL("image/jpeg", quality);
+            while (compressed.length > 240000 && quality > 0.35) {
+              quality -= 0.1; compressed = canvas.toDataURL("image/jpeg", quality);
+            }
+            resolve(compressed);
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    document.getElementById("imageUploader").addEventListener("change", async function(e) {
+      if (publishingCourse) { e.target.value = ""; return alert("課程發布中，請完成後再加入照片。"); }
+      const files = Array.from(e.target.files);
+      if (uploadedImages.length + files.length > MAX_COURSE_IMAGES) { e.target.value = ""; return alert("最多只能上傳 20 張！"); }
+      processingImages = true;
+      e.target.disabled = true;
+      document.getElementById("publishBtn").disabled = true;
+      try {
+        for (let i = 0; i < files.length; i++) {
+          document.getElementById("imgCountBadge").innerText = `照片壓縮中 ${i + 1} / ${files.length}`;
+          const b64 = await compressImage(files[i]);
+          uploadedImages.push({ base64: b64, note: "" });
+          await new Promise(resolve => window.setTimeout(resolve, 0));
+        }
+      } catch (error) { alert("部分照片未加入：" + error.message); }
+      finally {
+        processingImages = false; e.target.disabled = false; e.target.value = "";
+        document.getElementById("publishBtn").disabled = false;
+        renderImagePreviews();
+      }
+    });
+
+    function renderImagePreviews() {
+      const grid = document.getElementById("imagePreviewGrid");
+      grid.innerHTML = "";
+      document.getElementById("imgCountBadge").innerText = `${uploadedImages.length} / 20 張`;
+      uploadedImages.forEach((img, idx) => {
+        const card = document.createElement("div");
+        card.className = "border rounded-lg p-2 bg-white text-center space-y-1 relative";
+        card.innerHTML = `
+          <button type="button" onclick="removeImg(${idx})" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs">✕</button>
+          <img loading="lazy" decoding="async" src="${img.base64}" class="h-20 w-full object-cover rounded" />
+          <input type="text" placeholder="圖片註釋" value="${img.note}" onchange="uploadedImages[${idx}].note=this.value" class="w-full text-xs border rounded p-1" />
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function removeImg(idx) {
+      if (publishingCourse || processingImages) return alert("請等待目前操作完成後再刪除照片。");
+      uploadedImages.splice(idx, 1);
+      renderImagePreviews();
+    }
+
+    async function submitCreateCourse() {
+      if (publishingCourse) return;
+      if (departmentLoading) return alert("應訓名冊尚未完成讀取，請確認部門名冊後再開課。");
+      if (processingImages) return alert("請等待照片處理完成。");
+      const courseId = document.getElementById("courseId").value.trim();
+      const title = document.getElementById("title").value.trim();
+      const content = document.getElementById("content").value.trim();
+
+      if (!courseId || !title || !content) return alert("請將課程編號、主題名稱與詳細條目填寫完整！");
+      if (!confirm("確定正式開課？發布後學員即可看到此課程並簽認。")) return;
+      publishingCourse = true;
+
+      const btn = document.getElementById("publishBtn");
+      btn.disabled = true;
+      btn.innerText = "發布建立活頁簿中（請稍候）...";
+
+      const boxes = Array.from(document.querySelectorAll(".dept-box:checked"));
+      const payload = {
+        action: "createCourseBook",
+        category: document.getElementById("category").value,
+        courseId: courseId,
+        creator: currentAdmin.name,
+        creatorId: currentAdmin.id,
+        title: title,
+        content: content,
+        selectedDepts: boxes.map(b => b.value),
+        roster: activeRoster,
+        images: uploadedImages
+      };
+
+      try {
+        const result = await postConfirmed(payload, 300000, text => btn.innerText = text);
+        if (result.status === "success") {
+          pageCache.clear();
+          courseStatus = "進行中"; coursePage = 1; courseQuery = ""; courseYear = "";
+          document.getElementById("courseStatusFilter").value = courseStatus;
+          document.getElementById("courseSearch").value = "";
+          document.getElementById("courseYear").value = "";
+          document.getElementById("courseForm").reset();
+          uploadedImages = []; activeRoster = []; renderImagePreviews(); renderRosterChips();
+          alert("課程建立成功！已同步至學員待辦清單（不發送 LINE 通知）。");
+          toggleCreateForm();
+          clearLocalCache(`courses:${currentAdmin.id}`);
+          loadMyCourses();
+        } else {
+          alert("建立失敗：" + result.message);
+        }
+      } catch (err) {
+        alert("開課尚未完成確認：" + err.message);
+      } finally {
+        publishingCourse = false;
+        btn.disabled = false;
+        btn.innerText = "正式開課並發布至學員待辦";
+      }
+    }
+  </script>
+</body>
+</html>
